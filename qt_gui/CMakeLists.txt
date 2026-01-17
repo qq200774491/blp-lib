@@ -25,6 +25,8 @@ add_executable(blp_viewer
     src/imageview.cpp
 )
 
+option(BLP_STATIC_LINK "Link BLP library statically" OFF)
+
 target_include_directories(blp_viewer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
@@ -32,6 +34,25 @@ target_include_directories(blp_viewer PRIVATE
 )
 
 target_link_libraries(blp_viewer PRIVATE ${QT_PACKAGE}::Widgets)
+
+if (BLP_STATIC_LINK)
+    target_compile_definitions(blp_viewer PRIVATE BLP_STATIC_LINK)
+
+    if (WIN32)
+        set(BLP_STATIC_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../target/release/blp_lib.lib")
+    else()
+        set(BLP_STATIC_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../target/release/libblp_lib.a")
+    endif()
+
+    if (EXISTS "${BLP_STATIC_LIB}")
+        target_link_libraries(blp_viewer PRIVATE "${BLP_STATIC_LIB}")
+        if (WIN32)
+            target_link_libraries(blp_viewer PRIVATE ws2_32 ntdll)
+        endif()
+    else()
+        message(FATAL_ERROR "BLP static library not found: ${BLP_STATIC_LIB}. Build it with cargo build --release.")
+    endif()
+endif()
 
 if (WIN32)
     add_library(blp_thumbnail SHARED

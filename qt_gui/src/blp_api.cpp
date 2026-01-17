@@ -7,9 +7,37 @@
 
 BlpApi::BlpApi() {
     lib_.setLoadHints(QLibrary::ResolveAllSymbolsHint);
+#ifdef BLP_STATIC_LINK
+    loadFromBuffer_ = &blp_load_from_buffer;
+    freeImage_ = &blp_free_image;
+    getVersion_ = &blp_get_version;
+    encodeBytesToBlp_ = &blp_encode_bytes_to_blp;
+    decodeMipToPngFromBuffer_ = &blp_decode_mip_to_png_from_buffer;
+    loaded_ = true;
+    loadedPath_ = QStringLiteral("static");
+#endif
 }
 
 bool BlpApi::ensureLoaded(QString* outError) {
+#ifdef BLP_STATIC_LINK
+    if (!loaded_) {
+        loadFromBuffer_ = &blp_load_from_buffer;
+        freeImage_ = &blp_free_image;
+        getVersion_ = &blp_get_version;
+        encodeBytesToBlp_ = &blp_encode_bytes_to_blp;
+        decodeMipToPngFromBuffer_ = &blp_decode_mip_to_png_from_buffer;
+        loaded_ = true;
+        loadedPath_ = QStringLiteral("static");
+    }
+    if (!loadFromBuffer_ || !freeImage_ || !getVersion_ || !encodeBytesToBlp_ ||
+        !decodeMipToPngFromBuffer_) {
+        if (outError) {
+            *outError = "静态链接的 BLP 符号缺失";
+        }
+        return false;
+    }
+    return true;
+#endif
     if (loaded_) {
         return true;
     }

@@ -6,6 +6,7 @@
 #include <QCheckBox>
 #include <QCoreApplication>
 #include <QColorDialog>
+#include <QCloseEvent>
 #include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
@@ -356,6 +357,11 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent) {
     setupUi();
     applyStyle();
+    QSettings settings;
+    const QByteArray geometry = settings.value("window/geometry").toByteArray();
+    if (!geometry.isEmpty()) {
+        restoreGeometry(geometry);
+    }
     qApp->installEventFilter(this);
     updateBlpStatus();
     updateAssociationAction();
@@ -392,6 +398,12 @@ void MainWindow::dropEvent(QDropEvent* event) {
 
     addFiles(paths);
     event->acceptProposedAction();
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+    QSettings settings;
+    settings.setValue("window/geometry", saveGeometry());
+    QMainWindow::closeEvent(event);
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {

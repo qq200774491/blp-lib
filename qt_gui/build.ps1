@@ -5,7 +5,8 @@ param(
     [string]$Generator = "",
     [string]$QtPrefix = "",
     [switch]$BuildBlp,
-    [switch]$CopyBlp
+    [switch]$CopyBlp,
+    [switch]$BlpStatic
 )
 
 $ErrorActionPreference = "Stop"
@@ -129,6 +130,9 @@ New-Item -ItemType Directory -Force $BuildDir | Out-Null
 Push-Location $repoRoot
 
 $cmakeArgs = @("-S", "qt_gui", "-B", $BuildDir, "-DCMAKE_PREFIX_PATH=$qtPrefix", "-DCMAKE_BUILD_TYPE=$Config")
+if ($BlpStatic) {
+    $cmakeArgs += "-DBLP_STATIC_LINK=ON"
+}
 if (-not [string]::IsNullOrWhiteSpace($Generator)) {
     $cmakeArgs += @("-G", $Generator)
 }
@@ -147,7 +151,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "CMake build failed"
 }
 
-if ($BuildBlp -or $CopyBlp) {
+if (($BuildBlp -or $CopyBlp) -and -not $BlpStatic) {
     $blpLib = Find-BlpLibrary
     if ($blpLib) {
         $targetDir = Join-Path $BuildDir $Config
@@ -159,4 +163,6 @@ if ($BuildBlp -or $CopyBlp) {
     } else {
         Write-Warning "BLP library not found. Set BLP_LIB_PATH when running."
     }
+} elseif ($BlpStatic) {
+    Write-Host "BLP static link enabled; skip copying BLP DLL."
 }

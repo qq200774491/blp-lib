@@ -20,6 +20,7 @@ class QButtonGroup;
 class QCheckBox;
 class QGroupBox;
 class QToolButton;
+class QCloseEvent;
 class QDragEnterEvent;
 class QDragMoveEvent;
 class QDropEvent;
@@ -50,6 +51,7 @@ protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
 
 private slots:
     void onAddFiles();
