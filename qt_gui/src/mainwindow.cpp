@@ -43,7 +43,9 @@
 
 #ifdef Q_OS_WIN
 #include <ShlObj.h>
+#include <Shlwapi.h>
 #include <Windows.h>
+#pragma comment(lib, "Shlwapi.lib")
 #endif
 
 #include "blp_api.h"
@@ -121,6 +123,19 @@ const char* kThumbnailHandler = "{E357FCCD-A995-4576-B01F-234630154E96}";
 
 #ifdef Q_OS_WIN
 bool isBlpAssociated() {
+    wchar_t buffer[256] = {};
+    DWORD size = ARRAYSIZE(buffer);
+    const HRESULT hr = AssocQueryStringW(ASSOCF_NONE,
+                                         ASSOCSTR_PROGID,
+                                         L".blp",
+                                         nullptr,
+                                         buffer,
+                                         &size);
+    if (SUCCEEDED(hr)) {
+        const QString progId = QString::fromWCharArray(buffer);
+        return progId.compare(QLatin1String(kBlpProgId), Qt::CaseInsensitive) == 0;
+    }
+
     QSettings classes("HKEY_CURRENT_USER\\Software\\Classes", QSettings::NativeFormat);
     classes.beginGroup(".blp");
     const QString progId = classes.value(".").toString();
@@ -135,11 +150,15 @@ bool registerBlpAssociation(const QString& appPath, QString* outError) {
     classes.setValue("PerceivedType", "image");
     classes.setValue("Content Type", "image/blp");
     classes.endGroup();
+    classes.setValue(QString(".blp/OpenWithProgids/%1").arg(QLatin1String(kBlpProgId)), "");
     classes.setValue(QString("%1/.").arg(QLatin1String(kBlpProgId)), "BLP Image");
     classes.setValue(QString("%1/DefaultIcon/.").arg(QLatin1String(kBlpProgId)),
                      QDir::toNativeSeparators(appPath) + ",0");
     classes.setValue(QString("%1/shell/open/command/.").arg(QLatin1String(kBlpProgId)),
                      QString("\"%1\" \"%2\"").arg(QDir::toNativeSeparators(appPath), "%1"));
+    const QString exeName = QFileInfo(appPath).fileName();
+    const QString appKey = QString("Applications/%1/shell/open/command/.").arg(exeName);
+    classes.setValue(appKey, QString("\"%1\" \"%2\"").arg(QDir::toNativeSeparators(appPath), "%1"));
     classes.sync();
     if (classes.status() != QSettings::NoError) {
         if (outError) {
@@ -807,6 +826,23 @@ void MainWindow::applyStyle() {
         "  background: #f5f6f8;"
         "  border: 0px;"
         "}"
+        "QToolBar QToolButton {"
+        "  color: #5b6472;"
+        "  background: transparent;"
+        "  border: none;"
+        "  padding: 6px 10px;"
+        "}"
+        "QToolBar QToolButton:hover {"
+        "  background: #e6ebf3;"
+        "  border-radius: 6px;"
+        "}"
+        "QToolBar QToolButton:checked {"
+        "  background: #dce3ee;"
+        "  border-radius: 6px;"
+        "}"
+        "QToolBar QToolButton:disabled {"
+        "  color: #a8b0bc;"
+        "}"
         "QWidget#previewOverlay { background: transparent; }"
         "QWidget#pow2Panel, QWidget#bgPanel {"
         "  background: rgba(255, 255, 255, 0.92);"
@@ -840,6 +876,50 @@ void MainWindow::applyStyle() {
         "QProgressBar::chunk {"
         "  background-color: #2d6cdf;"
         "  border-radius: 4px;"
+        "}"
+        "QScrollBar:vertical {"
+        "  background: #e9edf3;"
+        "  width: 10px;"
+        "  margin: 2px;"
+        "  border-radius: 5px;"
+        "}"
+        "QScrollBar::handle:vertical {"
+        "  background: #b6c0cd;"
+        "  min-height: 24px;"
+        "  border-radius: 5px;"
+        "}"
+        "QScrollBar::handle:vertical:hover {"
+        "  background: #9aa6b4;"
+        "}"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
+        "  height: 0px;"
+        "  width: 0px;"
+        "  background: transparent;"
+        "}"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {"
+        "  background: none;"
+        "}"
+        "QScrollBar:horizontal {"
+        "  background: #e9edf3;"
+        "  height: 10px;"
+        "  margin: 2px;"
+        "  border-radius: 5px;"
+        "}"
+        "QScrollBar::handle:horizontal {"
+        "  background: #b6c0cd;"
+        "  min-width: 24px;"
+        "  border-radius: 5px;"
+        "}"
+        "QScrollBar::handle:horizontal:hover {"
+        "  background: #9aa6b4;"
+        "}"
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {"
+        "  height: 0px;"
+        "  width: 0px;"
+        "  background: transparent;"
+        "}"
+        "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {"
+        "  background: none;"
         "}";
 
     qApp->setStyleSheet(style);
@@ -883,12 +963,14 @@ void MainWindow::onRemoveSelected() {
     for (QListWidgetItem* item : items) {
         const QString path = item->text();
         fileSet_.remove(path);
+        relativePathMap_.remove(path);
         delete fileList_->takeItem(fileList_->row(item));
     }
 }
 
 void MainWindow::onClearList() {
     fileSet_.clear();
+    relativePathMap_.clear();
     fileList_->clear();
     imageView_->clearImage();
     clearPreviewState();
@@ -1173,7 +1255,11 @@ void MainWindow::onAssociateBlp() {
     QString error;
     const QString appPath = QCoreApplication::applicationFilePath();
     if (registerBlpAssociation(appPath, &error)) {
-        logMessage("已关联 .blp 打开方式");
+        if (isBlpAssociated()) {
+            logMessage("已关联 .blp 打开方式");
+        } else {
+            logMessage("已写入关联项，但系统默认应用未生效（可能被系统锁定）。请在系统设置里手动选择默认应用。");
+        }
     } else {
         logMessage(QString("关联 .blp 失败：%1").arg(error));
     }
@@ -1196,6 +1282,10 @@ void MainWindow::onThumbnailToggled(bool enabled) {
 }
 
 void MainWindow::addFiles(const QStringList& paths) {
+    addFilesInternal(paths, QHash<QString, QString>());
+}
+
+void MainWindow::addFilesInternal(const QStringList& paths, const QHash<QString, QString>& relativeMap) {
     QStringList pending;
     const int startCount = fileList_->count();
 
@@ -1217,6 +1307,10 @@ void MainWindow::addFiles(const QStringList& paths) {
         }
         pending << fullPath;
         fileSet_.insert(fullPath);
+        const auto it = relativeMap.constFind(fullPath);
+        if (it != relativeMap.constEnd()) {
+            relativePathMap_.insert(fullPath, it.value());
+        }
     }
 
     for (const QString& path : pending) {
@@ -1240,17 +1334,24 @@ void MainWindow::addFolderFiles(const QString& folder, bool recursive) {
         filters << QString("*.%1").arg(ext);
     }
 
+    const QString rootPath = QDir(folder).absolutePath();
     QDirIterator it(folder,
                     filters,
                     QDir::Files,
                     recursive ? QDirIterator::Subdirectories : QDirIterator::NoIteratorFlags);
 
     QStringList paths;
+    QHash<QString, QString> relativeMap;
     while (it.hasNext()) {
-        paths << it.next();
+        const QString fullPath = it.next();
+        paths << fullPath;
+        const QString relPath = QDir(rootPath).relativeFilePath(fullPath);
+        if (!relPath.isEmpty()) {
+            relativeMap.insert(fullPath, relPath);
+        }
     }
 
-    addFiles(paths);
+    addFilesInternal(paths, relativeMap);
 }
 
 void MainWindow::updatePreview(const QString& path) {
@@ -1700,18 +1801,34 @@ void MainWindow::logMessage(const QString& message) {
 
 QString MainWindow::buildOutputPath(const QString& inputPath, const QString& format, bool overwrite) const {
     const QString outputDir = outputDirEdit_->text().trimmed();
-    const QFileInfo inputInfo(inputPath);
-    const QString baseName = inputInfo.completeBaseName();
+    const QString relativePath = relativePathMap_.value(inputPath);
+    QString baseName;
+    QString relativeDir;
+    if (!relativePath.isEmpty()) {
+        const QFileInfo relInfo(relativePath);
+        baseName = relInfo.completeBaseName();
+        relativeDir = relInfo.path();
+        if (relativeDir == ".") {
+            relativeDir.clear();
+        }
+    } else {
+        const QFileInfo inputInfo(inputPath);
+        baseName = inputInfo.completeBaseName();
+    }
     const QString ext = normalizeFormat(format);
 
-    QString candidate = QDir(outputDir).filePath(QString("%1.%2").arg(baseName, ext));
+    const QString targetDir = relativeDir.isEmpty()
+                                  ? outputDir
+                                  : QDir(outputDir).filePath(relativeDir);
+
+    QString candidate = QDir(targetDir).filePath(QString("%1.%2").arg(baseName, ext));
     if (overwrite || !QFileInfo::exists(candidate)) {
         return candidate;
     }
 
     int index = 1;
     while (QFileInfo::exists(candidate)) {
-        candidate = QDir(outputDir).filePath(QString("%1_%2.%3").arg(baseName).arg(index).arg(ext));
+        candidate = QDir(targetDir).filePath(QString("%1_%2.%3").arg(baseName).arg(index).arg(ext));
         ++index;
     }
 

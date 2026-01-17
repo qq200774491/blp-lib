@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QListWidget>
 #include <QMainWindow>
 #include <QSet>
@@ -78,6 +79,7 @@ private:
     void setupUi();
     void applyStyle();
     void addFiles(const QStringList& paths);
+    void addFilesInternal(const QStringList& paths, const QHash<QString, QString>& relativeMap);
     void addFolderFiles(const QString& folder, bool recursive);
     void updatePreview(const QString& path);
     void updateInfoBar(const QString& path);
@@ -128,6 +130,7 @@ private:
     QToolButton* alphaToggle_ = nullptr;
 
     QSet<QString> fileSet_;
+    QHash<QString, QString> relativePathMap_;
     QByteArray currentBlpBytes_;
     ImageMeta currentMeta_;
     QImage previewOriginalImage_;
