@@ -18,6 +18,7 @@ class QSlider;
 class QButtonGroup;
 class QCheckBox;
 class QGroupBox;
+class QToolButton;
 class QDragEnterEvent;
 class QDragMoveEvent;
 class QDropEvent;
@@ -66,6 +67,11 @@ private slots:
     void onResetZoomClicked();
     void onAssociateBlp();
     void onThumbnailToggled(bool enabled);
+    void onPickPreviewBackground();
+    void onResetPreviewBackground();
+    void onAlignPow2();
+    void onRestorePow2();
+    void onSavePow2();
 
 private:
     void setupUi();
@@ -77,11 +83,13 @@ private:
     void updateBlpStatus();
     void updateAssociationAction();
     void updateThumbnailAction();
+    void updatePow2Overlay();
     void logMessage(const QString& message);
     QString buildOutputPath(const QString& inputPath, const QString& format, bool overwrite) const;
     QString normalizedFormat() const;
     void setInfoText(const ImageMeta& meta, int mipIndex);
     void clearPreviewState();
+    void setPreviewImage(const QImage& image, bool adjusted);
 
     FileListWidget* fileList_ = nullptr;
     ImageView* imageView_ = nullptr;
@@ -106,10 +114,20 @@ private:
     QProgressBar* progressBar_ = nullptr;
     QPlainTextEdit* logEdit_ = nullptr;
     QSlider* zoomSlider_ = nullptr;
+    QWidget* previewOverlay_ = nullptr;
+    QWidget* pow2Panel_ = nullptr;
+    QToolButton* pow2AlignButton_ = nullptr;
+    QToolButton* pow2RestoreButton_ = nullptr;
+    QToolButton* pow2SaveButton_ = nullptr;
+    QToolButton* backgroundButton_ = nullptr;
 
     QSet<QString> fileSet_;
     QByteArray currentBlpBytes_;
     ImageMeta currentMeta_;
+    QImage previewOriginalImage_;
+    QImage previewAdjustedImage_;
+    QString currentPreviewPath_;
+    bool previewAdjusted_ = false;
     bool currentIsBlp_ = false;
     int currentMipIndex_ = 0;
     BlpApi blpApi_;

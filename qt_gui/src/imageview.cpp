@@ -21,8 +21,9 @@ void ImageView::setImage(const QImage& image) {
     pixmapItem_ = scene_->addPixmap(QPixmap::fromImage(image));
     placeholder_ = nullptr;
     scene_->setSceneRect(pixmapItem_->boundingRect());
-    fitMode_ = true;
-    fitToImage();
+    fitMode_ = false;
+    setZoom(1.0);
+    centerOn(pixmapItem_);
     emit imageChanged(true);
 }
 
@@ -61,6 +62,35 @@ double ImageView::zoom() const {
     return zoom_;
 }
 
+void ImageView::setBackgroundColor(const QColor& color) {
+    if (!color.isValid()) {
+        return;
+    }
+    backgroundColor_ = color;
+    setBackgroundBrush(checkerboardBrush());
+    viewport()->update();
+}
+
+void ImageView::resetBackground() {
+    backgroundColor_ = QColor(224, 228, 235);
+    setBackgroundBrush(checkerboardBrush());
+    viewport()->update();
+}
+
+QColor ImageView::backgroundColor() const {
+    return backgroundColor_;
+}
+
+void ImageView::setOverlayWidget(QWidget* overlay) {
+    overlay_ = overlay;
+    if (!overlay_) {
+        return;
+    }
+    overlay_->setParent(viewport());
+    overlay_->raise();
+    updateOverlayGeometry();
+}
+
 void ImageView::wheelEvent(QWheelEvent* event) {
     if (!pixmapItem_) {
         event->ignore();
@@ -85,6 +115,7 @@ void ImageView::resizeEvent(QResizeEvent* event) {
     } else if (!pixmapItem_) {
         updatePlaceholder();
     }
+    updateOverlayGeometry();
 }
 
 void ImageView::updatePlaceholder() {
@@ -106,12 +137,29 @@ void ImageView::updatePlaceholder() {
 QBrush ImageView::checkerboardBrush() const {
     const int tileSize = 16;
     QPixmap pixmap(tileSize * 2, tileSize * 2);
-    pixmap.fill(QColor(224, 228, 235));
+    const QColor lightColor = backgroundColor_.isValid()
+                                  ? backgroundColor_
+                                  : QColor(224, 228, 235);
+    const QColor darkColor = lightColor.darker(115);
+    pixmap.fill(lightColor);
 
     QPainter painter(&pixmap);
-    painter.fillRect(0, 0, tileSize, tileSize, QColor(190, 195, 205));
-    painter.fillRect(tileSize, tileSize, tileSize, tileSize, QColor(190, 195, 205));
+    painter.fillRect(0, 0, tileSize, tileSize, darkColor);
+    painter.fillRect(tileSize, tileSize, tileSize, tileSize, darkColor);
     painter.end();
 
     return QBrush(pixmap);
+}
+
+void ImageView::updateOverlayGeometry() {
+    if (!overlay_) {
+        return;
+    }
+
+    const int margin = 8;
+    overlay_->adjustSize();
+    const int height = overlay_->sizeHint().height();
+    const int width = qMax(0, viewport()->width() - margin * 2);
+    overlay_->setGeometry(margin, margin, width, height);
+    overlay_->raise();
 }

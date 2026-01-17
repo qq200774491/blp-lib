@@ -5,6 +5,7 @@
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QCoreApplication>
+#include <QColorDialog>
 #include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
@@ -21,6 +22,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMimeData>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
@@ -31,6 +33,7 @@
 #include <QSizePolicy>
 #include <QStatusBar>
 #include <QTemporaryFile>
+#include <QToolButton>
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QUrl>
@@ -66,6 +69,28 @@ QStringList extractLocalPaths(const QMimeData* mimeData) {
 
 bool isPowerOfTwo(int value) {
     return value > 0 && ((value & (value - 1)) == 0);
+}
+
+int nearestPowerOfTwo(int value) {
+    if (value <= 0) {
+        return 1;
+    }
+    if (isPowerOfTwo(value)) {
+        return value;
+    }
+
+    int upper = 1;
+    while (upper < value && upper < (1 << 30)) {
+        upper <<= 1;
+    }
+    int lower = upper >> 1;
+    if (value - lower < upper - value) {
+        return lower;
+    }
+    if (value - lower > upper - value) {
+        return upper;
+    }
+    return upper;
 }
 
 int autoMipCount(int width, int height) {
@@ -204,6 +229,16 @@ QVector<BlpMipEntry> readBlpMipEntries(const QByteArray& bytes) {
     }
 
     return entries;
+}
+
+RgbaImage toRgbaImage(const QImage& image) {
+    QImage converted = image.convertToFormat(QImage::Format_RGBA8888);
+    RgbaImage rgba;
+    rgba.width = converted.width();
+    rgba.height = converted.height();
+    const int byteCount = converted.bytesPerLine() * converted.height();
+    rgba.pixels = QByteArray(reinterpret_cast<const char*>(converted.constBits()), byteCount);
+    return rgba;
 }
 
 const char* kInfoNormalStyle =
@@ -515,6 +550,48 @@ void MainWindow::setupUi() {
     rightLayout->addWidget(infoTitleLabel_);
 
     imageView_ = new ImageView(rightPanel);
+    previewOverlay_ = new QWidget(imageView_->viewport());
+    previewOverlay_->setObjectName("previewOverlay");
+    QHBoxLayout* overlayLayout = new QHBoxLayout(previewOverlay_);
+    overlayLayout->setContentsMargins(0, 0, 0, 0);
+    overlayLayout->setSpacing(8);
+
+    pow2Panel_ = new QWidget(previewOverlay_);
+    pow2Panel_->setObjectName("pow2Panel");
+    QHBoxLayout* pow2Layout = new QHBoxLayout(pow2Panel_);
+    pow2Layout->setContentsMargins(8, 4, 8, 4);
+    pow2Layout->setSpacing(6);
+    QLabel* pow2Label = new QLabel("非 2 次幂", pow2Panel_);
+    pow2AlignButton_ = new QToolButton(pow2Panel_);
+    pow2AlignButton_->setText("对齐 2 次幂");
+    pow2RestoreButton_ = new QToolButton(pow2Panel_);
+    pow2RestoreButton_->setText("恢复");
+    pow2SaveButton_ = new QToolButton(pow2Panel_);
+    pow2SaveButton_->setText("保存");
+    pow2Layout->addWidget(pow2Label);
+    pow2Layout->addWidget(pow2AlignButton_);
+    pow2Layout->addWidget(pow2RestoreButton_);
+    pow2Layout->addWidget(pow2SaveButton_);
+    pow2Panel_->setVisible(false);
+
+    QWidget* backgroundPanel = new QWidget(previewOverlay_);
+    backgroundPanel->setObjectName("bgPanel");
+    QHBoxLayout* backgroundLayout = new QHBoxLayout(backgroundPanel);
+    backgroundLayout->setContentsMargins(8, 4, 8, 4);
+    backgroundLayout->setSpacing(6);
+    backgroundButton_ = new QToolButton(backgroundPanel);
+    backgroundButton_->setText("背景");
+    backgroundButton_->setPopupMode(QToolButton::InstantPopup);
+    QMenu* backgroundMenu = new QMenu(backgroundButton_);
+    QAction* pickBackgroundAction = backgroundMenu->addAction("选择颜色");
+    QAction* resetBackgroundAction = backgroundMenu->addAction("恢复默认");
+    backgroundButton_->setMenu(backgroundMenu);
+    backgroundLayout->addWidget(backgroundButton_);
+
+    overlayLayout->addWidget(pow2Panel_);
+    overlayLayout->addStretch(1);
+    overlayLayout->addWidget(backgroundPanel);
+    imageView_->setOverlayWidget(previewOverlay_);
     rightLayout->addWidget(imageView_, 1);
 
     mipGroup_ = new QGroupBox("BLP 层级", rightPanel);
@@ -584,6 +661,11 @@ void MainWindow::setupUi() {
     connect(zoomSlider_, &QSlider::valueChanged, this, &MainWindow::onZoomSliderChanged);
     connect(fitButton, &QPushButton::clicked, this, &MainWindow::onFitClicked);
     connect(resetZoomButton, &QPushButton::clicked, this, &MainWindow::onResetZoomClicked);
+    connect(pow2AlignButton_, &QToolButton::clicked, this, &MainWindow::onAlignPow2);
+    connect(pow2RestoreButton_, &QToolButton::clicked, this, &MainWindow::onRestorePow2);
+    connect(pow2SaveButton_, &QToolButton::clicked, this, &MainWindow::onSavePow2);
+    connect(pickBackgroundAction, &QAction::triggered, this, &MainWindow::onPickPreviewBackground);
+    connect(resetBackgroundAction, &QAction::triggered, this, &MainWindow::onResetPreviewBackground);
     connect(imageView_, &ImageView::zoomChanged, this, [this](double zoom) {
         const int percent = qBound(10, static_cast<int>(zoom * 100.0 + 0.5), 400);
         zoomSlider_->blockSignals(true);
@@ -681,6 +763,26 @@ void MainWindow::applyStyle() {
         "  background: #f5f6f8;"
         "  border: 0px;"
         "}"
+        "QWidget#previewOverlay { background: transparent; }"
+        "QWidget#pow2Panel, QWidget#bgPanel {"
+        "  background: rgba(255, 255, 255, 0.92);"
+        "  border: 1px solid #d7dbe3;"
+        "  border-radius: 8px;"
+        "}"
+        "QWidget#previewOverlay QToolButton {"
+        "  background: transparent;"
+        "  border: none;"
+        "  padding: 4px 6px;"
+        "  color: #1e2127;"
+        "}"
+        "QWidget#previewOverlay QToolButton:hover {"
+        "  background: #eef2f8;"
+        "  border-radius: 6px;"
+        "}"
+        "QWidget#previewOverlay QToolButton:disabled {"
+        "  color: #9aa1ad;"
+        "}"
+        "QWidget#previewOverlay QLabel { color: #5b6472; }"
         "QStatusBar { background: #eef0f4; }"
         "QProgressBar {"
         "  border: 1px solid #d1d5dc;"
@@ -872,13 +974,12 @@ void MainWindow::onMipSelectionChanged(QListWidgetItem* current, QListWidgetItem
         return;
     }
 
-    imageView_->setImage(rgbaToQImage(image));
-
-    ImageMeta displayMeta = currentMeta_;
-    displayMeta.width = image.width;
-    displayMeta.height = image.height;
-    setInfoText(displayMeta, mipIndex);
+    const QImage previewImage = rgbaToQImage(image);
+    previewOriginalImage_ = previewImage;
+    previewAdjusted_ = false;
+    previewAdjustedImage_ = QImage();
     currentMipIndex_ = mipIndex;
+    setPreviewImage(previewImage, false);
 }
 
 void MainWindow::onFormatChanged() {
@@ -901,6 +1002,109 @@ void MainWindow::onFitClicked() {
 
 void MainWindow::onResetZoomClicked() {
     imageView_->setZoom(1.0);
+}
+
+void MainWindow::onPickPreviewBackground() {
+    const QColor current = imageView_->backgroundColor();
+    const QColor chosen = QColorDialog::getColor(current, this, "选择预览背景");
+    if (!chosen.isValid()) {
+        return;
+    }
+    imageView_->setBackgroundColor(chosen);
+}
+
+void MainWindow::onResetPreviewBackground() {
+    imageView_->resetBackground();
+}
+
+void MainWindow::onAlignPow2() {
+    if (previewOriginalImage_.isNull()) {
+        return;
+    }
+
+    const int targetWidth = nearestPowerOfTwo(previewOriginalImage_.width());
+    const int targetHeight = nearestPowerOfTwo(previewOriginalImage_.height());
+    if (targetWidth == previewOriginalImage_.width() &&
+        targetHeight == previewOriginalImage_.height()) {
+        updatePow2Overlay();
+        return;
+    }
+
+    const QImage adjusted = previewOriginalImage_.scaled(targetWidth,
+                                                         targetHeight,
+                                                         Qt::IgnoreAspectRatio,
+                                                         Qt::SmoothTransformation);
+    setPreviewImage(adjusted, true);
+}
+
+void MainWindow::onRestorePow2() {
+    if (previewOriginalImage_.isNull()) {
+        return;
+    }
+    setPreviewImage(previewOriginalImage_, false);
+}
+
+void MainWindow::onSavePow2() {
+    if (!previewAdjusted_ || previewAdjustedImage_.isNull()) {
+        return;
+    }
+
+    QStringList filters;
+    filters << "BLP (*.blp)"
+            << "PNG (*.png)"
+            << "JPG (*.jpg *.jpeg)"
+            << "BMP (*.bmp)"
+            << "TGA (*.tga)";
+
+    QString defaultExt = normalizeFormat(QFileInfo(currentPreviewPath_).suffix());
+    if (defaultExt.isEmpty()) {
+        defaultExt = "png";
+    }
+
+    QString defaultName = "aligned_pow2";
+    QString defaultDir = QDir::homePath();
+    if (!currentPreviewPath_.isEmpty()) {
+        const QFileInfo info(currentPreviewPath_);
+        defaultDir = info.absolutePath();
+        defaultName = info.completeBaseName() + "_pow2";
+        if (!info.suffix().isEmpty()) {
+            defaultExt = normalizeFormat(info.suffix());
+        }
+    }
+
+    const QString defaultPath = QDir(defaultDir).filePath(defaultName + "." + defaultExt);
+    const QString filterString = filters.join(";;");
+    QString outputPath = QFileDialog::getSaveFileName(this,
+                                                      "保存对齐图像",
+                                                      defaultPath,
+                                                      filterString);
+    if (outputPath.isEmpty()) {
+        return;
+    }
+
+    QFileInfo outInfo(outputPath);
+    QString format = normalizeFormat(outInfo.suffix());
+    if (format.isEmpty()) {
+        format = defaultExt;
+        outputPath += "." + format;
+        outInfo = QFileInfo(outputPath);
+    }
+
+    if (!supportedExtensions().contains(format)) {
+        logMessage(QString("保存失败：不支持的格式 %1").arg(outInfo.suffix()));
+        return;
+    }
+
+    RgbaImage image = toRgbaImage(previewAdjustedImage_);
+    const int quality = qualitySlider_->value();
+    const int mipCount = (format == "blp") ? autoMipCount(image.width, image.height) : 1;
+    QString error;
+    if (!writeImageFile(outputPath, format, image, quality, mipCount, &error, &blpApi_)) {
+        logMessage(QString("保存失败：%1（%2）").arg(outputPath, error));
+        return;
+    }
+
+    logMessage(QString("已保存对齐图像：%1").arg(outputPath));
 }
 
 void MainWindow::onAssociateBlp() {
@@ -986,6 +1190,7 @@ void MainWindow::addFolderFiles(const QString& folder, bool recursive) {
 
 void MainWindow::updatePreview(const QString& path) {
     clearPreviewState();
+    currentPreviewPath_ = path;
 
     const QFileInfo info(path);
     const QString ext = normalizeFormat(info.suffix());
@@ -1040,14 +1245,17 @@ void MainWindow::updatePreview(const QString& path) {
                                   static_cast<int>(blpImage.data_len));
         blpApi_.freeImage(&blpImage);
 
-        imageView_->setImage(rgbaToQImage(image));
+        const QImage previewImage = rgbaToQImage(image);
 
         currentMeta_.width = image.width;
         currentMeta_.height = image.height;
         currentMeta_.format = "blp";
         currentMeta_.fileSize = info.size();
         currentMipIndex_ = 0;
-        setInfoText(currentMeta_, 0);
+        previewOriginalImage_ = previewImage;
+        previewAdjusted_ = false;
+        previewAdjustedImage_ = QImage();
+        setPreviewImage(previewImage, false);
 
         if (mipGroup_) {
             mipGroup_->setVisible(true);
@@ -1115,9 +1323,12 @@ void MainWindow::updatePreview(const QString& path) {
         return;
     }
 
-    imageView_->setImage(rgbaToQImage(image));
+    const QImage previewImage = rgbaToQImage(image);
     currentMeta_ = meta;
-    setInfoText(meta, -1);
+    previewOriginalImage_ = previewImage;
+    previewAdjusted_ = false;
+    previewAdjustedImage_ = QImage();
+    setPreviewImage(previewImage, false);
 
     if (mipGroup_) {
         mipGroup_->setVisible(false);
@@ -1196,6 +1407,48 @@ void MainWindow::updateThumbnailAction() {
 #endif
 }
 
+void MainWindow::updatePow2Overlay() {
+    if (!pow2Panel_) {
+        return;
+    }
+
+    if (previewOriginalImage_.isNull()) {
+        pow2Panel_->setVisible(false);
+        return;
+    }
+
+    const bool originalIsPot = isPowerOfTwo(previewOriginalImage_.width()) &&
+                               isPowerOfTwo(previewOriginalImage_.height());
+    const bool showPanel = !originalIsPot || previewAdjusted_;
+    pow2Panel_->setVisible(showPanel);
+    if (pow2AlignButton_) {
+        pow2AlignButton_->setEnabled(!originalIsPot && !previewAdjusted_);
+    }
+    if (pow2RestoreButton_) {
+        pow2RestoreButton_->setEnabled(previewAdjusted_);
+    }
+    if (pow2SaveButton_) {
+        pow2SaveButton_->setEnabled(previewAdjusted_);
+    }
+}
+
+void MainWindow::setPreviewImage(const QImage& image, bool adjusted) {
+    imageView_->setImage(image);
+    previewAdjusted_ = adjusted;
+    if (adjusted) {
+        previewAdjustedImage_ = image;
+    } else {
+        previewAdjustedImage_ = QImage();
+    }
+
+    ImageMeta displayMeta = currentMeta_;
+    displayMeta.width = image.width();
+    displayMeta.height = image.height();
+    const int mipIndex = currentIsBlp_ ? currentMipIndex_ : -1;
+    setInfoText(displayMeta, mipIndex);
+    updatePow2Overlay();
+}
+
 void MainWindow::setInfoText(const ImageMeta& meta, int mipIndex) {
     QString info = QString("%1 x %2 像素 | %3 | %4")
                        .arg(meta.width)
@@ -1223,6 +1476,10 @@ void MainWindow::clearPreviewState() {
     currentMeta_ = ImageMeta();
     currentIsBlp_ = false;
     currentMipIndex_ = 0;
+    previewOriginalImage_ = QImage();
+    previewAdjustedImage_ = QImage();
+    currentPreviewPath_.clear();
+    previewAdjusted_ = false;
 
     if (mipGroup_) {
         mipGroup_->setVisible(false);
@@ -1242,6 +1499,7 @@ void MainWindow::clearPreviewState() {
         infoTitleLabel_->setText("未加载图像");
         infoTitleLabel_->setStyleSheet(kInfoNormalStyle);
     }
+    updatePow2Overlay();
 }
 
 void MainWindow::logMessage(const QString& message) {
