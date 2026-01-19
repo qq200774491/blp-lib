@@ -12,6 +12,7 @@
 #include <QDirIterator>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QFileOpenEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -69,6 +70,28 @@ QStringList extractLocalPaths(const QMimeData* mimeData) {
         }
     }
     return paths;
+}
+
+QString normalizeInputPath(const QString& raw) {
+    QString cleaned = raw.trimmed();
+    if (cleaned.size() >= 2) {
+        const QChar first = cleaned.front();
+        const QChar last = cleaned.back();
+        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+            cleaned = cleaned.mid(1, cleaned.size() - 2);
+        }
+    }
+
+    if (cleaned.isEmpty()) {
+        return cleaned;
+    }
+
+    const QUrl url = QUrl::fromUserInput(cleaned);
+    if (url.isLocalFile()) {
+        return QDir::cleanPath(url.toLocalFile());
+    }
+
+    return QDir::cleanPath(cleaned);
 }
 
 bool isPowerOfTwo(int value) {
@@ -380,6 +403,27 @@ MainWindow::MainWindow(QWidget* parent)
 #endif
 }
 
+void MainWindow::openPaths(const QStringList& paths) {
+    QStringList normalized;
+    normalized.reserve(paths.size());
+    for (const QString& raw : paths) {
+        const QString path = normalizeInputPath(raw);
+        if (path.isEmpty()) {
+            continue;
+        }
+        normalized << path;
+    }
+
+    if (normalized.isEmpty()) {
+        return;
+    }
+
+    addFiles(normalized);
+    if (fileList_ && fileList_->currentItem()) {
+        updatePreview(fileList_->currentItem()->text());
+    }
+}
+
 void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
     if (event->mimeData()->hasUrls()) {
         event->acceptProposedAction();
@@ -407,6 +451,18 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::FileOpen) {
+        auto* openEvent = static_cast<QFileOpenEvent*>(event);
+        QString path = normalizeInputPath(openEvent->file());
+        if (path.isEmpty()) {
+            path = normalizeInputPath(openEvent->url().toString());
+        }
+        if (!path.isEmpty()) {
+            openPaths(QStringList{path});
+            return true;
+        }
+    }
+
     const auto* widget = qobject_cast<QWidget*>(watched);
     if (!widget || (widget != this && !isAncestorOf(widget))) {
         return QMainWindow::eventFilter(watched, event);
@@ -1017,10 +1073,23 @@ void MainWindow::onConvertAll() {
         return;
     }
 
-    const QString outputDir = outputDirEdit_->text().trimmed();
+    QString outputDir = outputDirEdit_->text().trimmed();
     if (outputDir.isEmpty()) {
-        logMessage("请先设置输出目录");
-        return;
+        if (fileList_->count() == 1) {
+            const QString sourcePath = currentPreviewPath_.isEmpty()
+                                           ? fileList_->item(0)->text()
+                                           : currentPreviewPath_;
+            const QFileInfo sourceInfo(sourcePath);
+            if (sourceInfo.exists()) {
+                outputDir = sourceInfo.absolutePath();
+                outputDirEdit_->setText(outputDir);
+                logMessage("未设置输出目录，已使用源文件目录");
+            }
+        }
+        if (outputDir.isEmpty()) {
+            logMessage("请先设置输出目录");
+            return;
+        }
     }
 
     const QString format = normalizedFormat();

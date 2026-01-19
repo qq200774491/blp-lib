@@ -46,6 +46,7 @@ class MainWindow : public QMainWindow {
 
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+    void openPaths(const QStringList& paths);
 
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;

@@ -12,6 +12,7 @@ ImageView::ImageView(QWidget* parent)
     setScene(scene_);
     setDragMode(QGraphicsView::ScrollHandDrag);
     setRenderHint(QPainter::SmoothPixmapTransform, true);
+    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     setBackgroundBrush(checkerboardBrush());
     updatePlaceholder();
 }
@@ -65,10 +66,12 @@ void ImageView::setZoom(double value) {
     if (!pixmapItem_) {
         return;
     }
+    const QPointF center = mapToScene(viewport()->rect().center());
     zoom_ = qBound(0.05, value, 20.0);
     resetTransform();
     scale(zoom_, zoom_);
     fitMode_ = false;
+    centerOn(center);
     emit zoomChanged(zoom_);
 }
 

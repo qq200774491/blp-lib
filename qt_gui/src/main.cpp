@@ -17,5 +17,10 @@ int main(int argc, char* argv[]) {
 
     MainWindow window;
     window.show();
+
+    const QStringList args = QCoreApplication::arguments();
+    if (args.size() > 1) {
+        window.openPaths(args.mid(1));
+    }
     return app.exec();
 }
