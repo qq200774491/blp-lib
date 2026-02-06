@@ -16,6 +16,7 @@ class QPlainTextEdit;
 class QProgressBar;
 class QPushButton;
 class QSlider;
+class QSpinBox;
 class QButtonGroup;
 class QCheckBox;
 class QGroupBox;
@@ -76,6 +77,7 @@ private slots:
     void onAlignPow2();
     void onCenterPow2();
     void onRestorePow2();
+    void onResizeAndSave();
     void onAlphaToggled(bool enabled);
 
 private:
@@ -100,6 +102,7 @@ private:
     void clearPreviewState();
     void setPreviewImage(const QImage& image, bool adjusted);
     QImage applyPreviewAlpha(const QImage& image) const;
+    void updateResizeControls();
 
     FileListWidget* fileList_ = nullptr;
     ImageView* imageView_ = nullptr;
@@ -126,9 +129,13 @@ private:
     QSlider* zoomSlider_ = nullptr;
     QWidget* previewOverlay_ = nullptr;
     QWidget* pow2Panel_ = nullptr;
+    QGroupBox* resizeGroup_ = nullptr;
     QToolButton* pow2AlignButton_ = nullptr;
     QToolButton* pow2CenterButton_ = nullptr;
     QToolButton* pow2RestoreButton_ = nullptr;
+    QSpinBox* resizeWidthSpin_ = nullptr;
+    QSpinBox* resizeHeightSpin_ = nullptr;
+    QPushButton* resizeSaveButton_ = nullptr;
     QToolButton* backgroundButton_ = nullptr;
     QToolButton* alphaToggle_ = nullptr;
 

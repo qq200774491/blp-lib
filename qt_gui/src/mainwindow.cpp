@@ -32,6 +32,7 @@
 #include <QRadioButton>
 #include <QSettings>
 #include <QSlider>
+#include <QSpinBox>
 #include <QSplitter>
 #include <QSizePolicy>
 #include <QStatusBar>
@@ -397,6 +398,7 @@ MainWindow::MainWindow(QWidget* parent)
     updateAssociationAction();
     updateThumbnailAction();
 #ifdef Q_OS_WIN
+#if 0
     if (!isBlpAssociated()) {
         QString error;
         const QString appPath = QCoreApplication::applicationFilePath();
@@ -407,6 +409,7 @@ MainWindow::MainWindow(QWidget* parent)
         }
         updateAssociationAction();
     }
+#endif
 #endif
 }
 
@@ -740,6 +743,28 @@ void MainWindow::setupUi() {
     mipLayout->addWidget(mipList_);
     rightLayout->addWidget(mipGroup_);
 
+    resizeGroup_ = new QGroupBox("调整图像大小", rightPanel);
+    QHBoxLayout* resizeLayout = new QHBoxLayout(resizeGroup_);
+    resizeLayout->setContentsMargins(8, 6, 8, 6);
+    resizeLayout->setSpacing(6);
+    QLabel* resizeWidthLabel = new QLabel("宽", resizeGroup_);
+    resizeWidthSpin_ = new QSpinBox(resizeGroup_);
+    resizeWidthSpin_->setRange(1, 16384);
+    resizeWidthSpin_->setSuffix(" px");
+    QLabel* resizeHeightLabel = new QLabel("高", resizeGroup_);
+    resizeHeightSpin_ = new QSpinBox(resizeGroup_);
+    resizeHeightSpin_->setRange(1, 16384);
+    resizeHeightSpin_->setSuffix(" px");
+    resizeSaveButton_ = new QPushButton("调整并保存", resizeGroup_);
+    resizeLayout->addWidget(resizeWidthLabel);
+    resizeLayout->addWidget(resizeWidthSpin_);
+    resizeLayout->addWidget(resizeHeightLabel);
+    resizeLayout->addWidget(resizeHeightSpin_);
+    resizeLayout->addStretch(1);
+    resizeLayout->addWidget(resizeSaveButton_);
+    resizeGroup_->setVisible(false);
+    rightLayout->addWidget(resizeGroup_);
+
     QHBoxLayout* zoomLayout = new QHBoxLayout();
     QPushButton* fitButton = new QPushButton("适应窗口", rightPanel);
     QPushButton* resetZoomButton = new QPushButton("原始大小", rightPanel);
@@ -801,6 +826,7 @@ void MainWindow::setupUi() {
     connect(pow2AlignButton_, &QToolButton::clicked, this, &MainWindow::onAlignPow2);
     connect(pow2CenterButton_, &QToolButton::clicked, this, &MainWindow::onCenterPow2);
     connect(pow2RestoreButton_, &QToolButton::clicked, this, &MainWindow::onRestorePow2);
+    connect(resizeSaveButton_, &QPushButton::clicked, this, &MainWindow::onResizeAndSave);
     connect(alphaToggle_, &QToolButton::toggled, this, &MainWindow::onAlphaToggled);
     connect(pickBackgroundAction, &QAction::triggered, this, &MainWindow::onPickPreviewBackground);
     connect(resetBackgroundAction, &QAction::triggered, this, &MainWindow::onResetPreviewBackground);
@@ -1339,6 +1365,39 @@ void MainWindow::onRestorePow2() {
     logMessage("已恢复原始文件");
 }
 
+void MainWindow::onResizeAndSave() {
+    if (previewOriginalImage_.isNull() || currentPreviewPath_.isEmpty() || !resizeWidthSpin_ || !resizeHeightSpin_) {
+        return;
+    }
+
+    const int targetWidth = resizeWidthSpin_->value();
+    const int targetHeight = resizeHeightSpin_->value();
+    if (targetWidth <= 0 || targetHeight <= 0) {
+        return;
+    }
+
+    const QImage sourceImage = (previewAdjusted_ && !previewAdjustedImage_.isNull())
+                                   ? previewAdjustedImage_
+                                   : previewOriginalImage_;
+
+    if (sourceImage.width() == targetWidth && sourceImage.height() == targetHeight) {
+        logMessage("尺寸未变化，无需保存");
+        return;
+    }
+
+    const QImage resized = sourceImage.scaled(targetWidth,
+                                              targetHeight,
+                                              Qt::IgnoreAspectRatio,
+                                              Qt::SmoothTransformation);
+
+    QString error;
+    if (!saveAlignedToSource(resized, &error)) {
+        logMessage(QString("调整尺寸失败：%1").arg(error));
+        return;
+    }
+    logMessage(QString("已调整图像尺寸并保存：%1 x %2").arg(targetWidth).arg(targetHeight));
+}
+
 void MainWindow::onAssociateBlp() {
     QString error;
     const QString appPath = QCoreApplication::applicationFilePath();
@@ -1662,7 +1721,9 @@ void MainWindow::updateThumbnailAction() {
     if (!QFileInfo::exists(dllPath)) {
         thumbnailAction_->setText("资源管理器缩略图（BLP/TGA，缺少 DLL）");
         thumbnailAction_->setEnabled(false);
+        thumbnailAction_->blockSignals(true);
         thumbnailAction_->setChecked(false);
+        thumbnailAction_->blockSignals(false);
         return;
     }
     const bool registered = isThumbnailRegistered();
@@ -1675,7 +1736,9 @@ void MainWindow::updateThumbnailAction() {
 #else
     thumbnailAction_->setText("资源管理器缩略图（BLP/TGA，仅 Windows）");
     thumbnailAction_->setEnabled(false);
+    thumbnailAction_->blockSignals(true);
     thumbnailAction_->setChecked(false);
+    thumbnailAction_->blockSignals(false);
 #endif
 }
 
@@ -1807,7 +1870,38 @@ void MainWindow::setPreviewImage(const QImage& image, bool adjusted) {
     const int mipIndex = currentIsBlp_ ? currentMipIndex_ : -1;
     setInfoText(displayMeta, mipIndex);
     updatePow2Overlay();
+    updateResizeControls();
     updateAlphaToggle();
+}
+
+void MainWindow::updateResizeControls() {
+    if (!resizeGroup_) {
+        return;
+    }
+
+    const bool hasImage = !previewOriginalImage_.isNull();
+    resizeGroup_->setVisible(hasImage);
+    if (!hasImage) {
+        return;
+    }
+
+    const QImage base = (previewAdjusted_ && !previewAdjustedImage_.isNull())
+                            ? previewAdjustedImage_
+                            : previewOriginalImage_;
+
+    if (resizeWidthSpin_) {
+        resizeWidthSpin_->blockSignals(true);
+        resizeWidthSpin_->setValue(qMax(1, base.width()));
+        resizeWidthSpin_->blockSignals(false);
+    }
+    if (resizeHeightSpin_) {
+        resizeHeightSpin_->blockSignals(true);
+        resizeHeightSpin_->setValue(qMax(1, base.height()));
+        resizeHeightSpin_->blockSignals(false);
+    }
+    if (resizeSaveButton_) {
+        resizeSaveButton_->setEnabled(!currentPreviewPath_.isEmpty());
+    }
 }
 
 QImage MainWindow::applyPreviewAlpha(const QImage& image) const {
@@ -1881,6 +1975,7 @@ void MainWindow::clearPreviewState() {
         infoTitleLabel_->setStyleSheet(kInfoNormalStyle);
     }
     updatePow2Overlay();
+    updateResizeControls();
     updateAlphaToggle();
 }
 
