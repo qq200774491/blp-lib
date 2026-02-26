@@ -149,9 +149,9 @@ void showAboutDialog(AppState& state) {
     }
 
     if (ImGui::BeginPopupModal("关于 blp查看器", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::TextUnformatted("blp查看器 1.2v - 小为");
+        ImGui::TextUnformatted("blp查看器 1.3v - 小为");
         ImGui::Separator();
-        ImGui::TextUnformatted("版本：1.2");
+        ImGui::TextUnformatted("版本：1.3");
         ImGui::TextUnformatted("作者：小为");
         ImGui::TextUnformatted("用于 BLP / PNG / JPG / BMP / TGA 的查看与转换工具。");
         ImGui::Text("BLP 库状态：%s", state.blpApi.isLoaded() ? "已加载" : "未加载");

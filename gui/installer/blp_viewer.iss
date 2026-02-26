@@ -1,5 +1,5 @@
 #define AppName "BLP 查看器"
-#define AppVersion "1.0.0"
+#define AppVersion "1.3.0"
 #define AppPublisher "blp-lib"
 #define AppExeName "blp_viewer.exe"
 #define StageDir "stage"
