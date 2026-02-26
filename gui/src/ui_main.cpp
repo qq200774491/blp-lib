@@ -31,6 +31,7 @@ void removeSelectedFile(AppState& state) {
     }
 
     const std::string path = state.fileList[state.selectedFileIndex];
+    const bool removedCurrentPreview = (path == state.currentPreviewPath);
     state.fileSet.erase(path);
     state.relativePathMap.erase(path);
     state.fileList.erase(state.fileList.begin() + state.selectedFileIndex);
@@ -48,6 +49,9 @@ void removeSelectedFile(AppState& state) {
 
     if (state.selectedFileIndex >= static_cast<int>(state.fileList.size())) {
         state.selectedFileIndex = static_cast<int>(state.fileList.size()) - 1;
+    }
+    if (removedCurrentPreview) {
+        state.currentPreviewPath.clear();
     }
 }
 
@@ -140,19 +144,21 @@ void addPaths(AppState& state, const std::vector<std::string>& paths) {
 
 void showAboutDialog(AppState& state) {
     if (state.showAboutPopup) {
-        ImGui::OpenPopup("关于 BLP 查看器");
+        ImGui::OpenPopup("关于 blp查看器");
         state.showAboutPopup = false;
     }
 
-    if (ImGui::BeginPopupModal("关于 BLP 查看器", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::TextUnformatted("BLP Viewer");
+    if (ImGui::BeginPopupModal("关于 blp查看器", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted("blp查看器 1.2v - 小为");
         ImGui::Separator();
+        ImGui::TextUnformatted("版本：1.2");
+        ImGui::TextUnformatted("作者：小为");
         ImGui::TextUnformatted("用于 BLP / PNG / JPG / BMP / TGA 的查看与转换工具。");
         ImGui::Text("BLP 库状态：%s", state.blpApi.isLoaded() ? "已加载" : "未加载");
         if (state.blpApi.isLoaded()) {
             const std::string ver = state.blpApi.version();
             if (!ver.empty()) {
-                ImGui::Text("版本：%s", ver.c_str());
+                ImGui::Text("BLP 库版本：%s", ver.c_str());
             }
         }
         ImGui::Spacing();
@@ -210,6 +216,17 @@ void renderMenuBar(AppState& state) {
         if (ImGui::MenuItem("清空日志", nullptr, false, !state.logMessages.empty())) {
             state.logMessages.clear();
         }
+        ImGui::Separator();
+        if (state.outputFormat == 0) {
+            ImGui::TextDisabled("当前输出格式为 BLP，质量可在左侧直接调整");
+        } else {
+            ImGui::TextUnformatted("非 BLP 输出质量");
+            ImGui::SetNextItemWidth(160.0f * state.dpiScale);
+            ImGui::SliderInt("质量##NonBlpQuality", &state.quality, 0, 100);
+            if (ImGui::MenuItem("重置为 100%")) {
+                state.quality = 100;
+            }
+        }
         ImGui::EndMenu();
     }
 
@@ -242,13 +259,13 @@ void renderMenuBar(AppState& state) {
         std::wstring dllPath = getAppDir() + L"\\blp_thumbnail.dll";
         bool dllExists = std::filesystem::exists(dllPath);
         bool checked = state.thumbnailRegistered;
-        if (ImGui::MenuItem("资源管理器缩略图（BLP/TGA）", nullptr, checked, dllExists)) {
+        if (ImGui::MenuItem("资源管理器缩略图（BLP/TGA/PNG）", nullptr, checked, dllExists)) {
             std::string error;
             const char* entry = checked ? "DllUnregisterServer" : "DllRegisterServer";
             if (callDllEntry(dllPath, entry, &error)) {
                 state.logMessages.push_back(checked
-                    ? "已关闭资源管理器缩略图（BLP/TGA）"
-                    : "已启用资源管理器缩略图（BLP/TGA）");
+                    ? "已关闭资源管理器缩略图（BLP/TGA/PNG）"
+                    : "已启用资源管理器缩略图（BLP/TGA/PNG）");
             } else {
                 char msg[256];
                 std::snprintf(msg, sizeof(msg), "%s：%s",

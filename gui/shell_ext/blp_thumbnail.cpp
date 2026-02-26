@@ -19,6 +19,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_TGA
+#define STBI_ONLY_PNG
 #define STBI_NO_STDIO
 #include "stb_image.h"
 
@@ -338,7 +339,7 @@ bool tryDecodeBlp(const std::vector<uint8_t>& bytes, UINT cx, HBITMAP* outBmp) {
     return true;
 }
 
-bool tryDecodeTga(const std::vector<uint8_t>& bytes, UINT cx, HBITMAP* outBmp) {
+bool tryDecodeRaster(const std::vector<uint8_t>& bytes, UINT cx, HBITMAP* outBmp) {
     if (!outBmp) {
         return false;
     }
@@ -436,7 +437,7 @@ public:
         }
 
         HBITMAP hbmp = nullptr;
-        if (!tryDecodeBlp(bytes, cx, &hbmp) && !tryDecodeTga(bytes, cx, &hbmp)) {
+        if (!tryDecodeBlp(bytes, cx, &hbmp) && !tryDecodeRaster(bytes, cx, &hbmp)) {
             return E_FAIL;
         }
 
@@ -603,6 +604,16 @@ STDAPI DllRegisterServer(void) {
               kThumbnailHandler);
     setRegistryString(HKEY_CURRENT_USER, tgaSfaKey, nullptr, kThumbnailClsid);
 
+    wchar_t pngShellExKey[MAX_PATH] = {};
+    wsprintfW(pngShellExKey, L"Software\\Classes\\.png\\ShellEx\\%s", kThumbnailHandler);
+    setRegistryString(HKEY_CURRENT_USER, pngShellExKey, nullptr, kThumbnailClsid);
+
+    wchar_t pngSfaKey[MAX_PATH] = {};
+    wsprintfW(pngSfaKey,
+              L"Software\\Classes\\SystemFileAssociations\\.png\\ShellEx\\%s",
+              kThumbnailHandler);
+    setRegistryString(HKEY_CURRENT_USER, pngSfaKey, nullptr, kThumbnailClsid);
+
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     return S_OK;
 }
@@ -635,6 +646,16 @@ STDAPI DllUnregisterServer(void) {
               L"Software\\Classes\\SystemFileAssociations\\.tga\\ShellEx\\%s",
               kThumbnailHandler);
     SHDeleteKeyW(HKEY_CURRENT_USER, tgaSfaKey);
+
+    wchar_t pngShellExKey[MAX_PATH] = {};
+    wsprintfW(pngShellExKey, L"Software\\Classes\\.png\\ShellEx\\%s", kThumbnailHandler);
+    SHDeleteKeyW(HKEY_CURRENT_USER, pngShellExKey);
+
+    wchar_t pngSfaKey[MAX_PATH] = {};
+    wsprintfW(pngSfaKey,
+              L"Software\\Classes\\SystemFileAssociations\\.png\\ShellEx\\%s",
+              kThumbnailHandler);
+    SHDeleteKeyW(HKEY_CURRENT_USER, pngSfaKey);
 
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     return S_OK;

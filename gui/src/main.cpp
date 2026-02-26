@@ -163,7 +163,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
     HWND hwnd = CreateWindowExW(
         WS_EX_ACCEPTFILES,
         wc.lpszClassName,
-        L"BLP \x67e5\x770b\x5668",
+        L"blp\x67e5\x770b\x5668 1.2v - \x5c0f\x4e3a",
         WS_OVERLAPPEDWINDOW,
         g_state.settings.windowX, g_state.settings.windowY,
         g_state.settings.windowW, g_state.settings.windowH,

@@ -53,7 +53,7 @@ struct AppState {
     int outputFormat = 0;  // 0=BLP 1=PNG 2=JPG 3=BMP 4=TGA
     int quality = 100;
     bool overwrite = false;
-    bool recursive = false;
+    bool recursive = true;
     char inputDirBuf[1024] = {};
     char outputDirBuf[1024] = {};
 

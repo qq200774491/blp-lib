@@ -284,14 +284,17 @@ void renderLeftPanel(AppState& state) {
             ImGui::InputTextWithHint("##FileSearch", "搜索文件名...", searchBuf, sizeof(searchBuf));
             ImGui::PopItemWidth();
 
-            if (ImGui::Button("添加文件...")) {
+            const float gap = ImGui::GetStyle().ItemSpacing.x;
+            const float halfW = (ImGui::GetContentRegionAvail().x - gap) * 0.5f;
+
+            if (ImGui::Button("添加文件...", ImVec2(halfW, 0))) {
                 auto files = openFileDialog(state.hwnd, L"*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp", true);
                 std::vector<std::string> paths;
                 for (const auto& f : files) paths.push_back(wideToUtf8(f));
                 addFiles(state, paths);
             }
             ImGui::SameLine();
-            if (ImGui::Button("添加文件夹...")) {
+            if (ImGui::Button("添加文件夹...", ImVec2(-1, 0))) {
                 auto folder = openFolderDialog(state.hwnd);
                 if (!folder.empty()) {
                     std::string folderUtf8 = wideToUtf8(folder);
@@ -299,20 +302,33 @@ void renderLeftPanel(AppState& state) {
                     addFolderFiles(state, folderUtf8, state.recursive);
                 }
             }
-            ImGui::SameLine();
-            if (ImGui::Button("移除选中")) {
+            if (ImGui::Button("移除选中", ImVec2(halfW, 0))) {
                 if (state.selectedFileIndex >= 0 && state.selectedFileIndex < static_cast<int>(state.fileList.size())) {
                     std::string path = state.fileList[state.selectedFileIndex];
+                    const bool removedCurrentPreview = (path == state.currentPreviewPath);
                     state.fileSet.erase(path);
                     state.relativePathMap.erase(path);
                     state.fileList.erase(state.fileList.begin() + state.selectedFileIndex);
-                    if (state.selectedFileIndex >= static_cast<int>(state.fileList.size())) {
+                    if (state.fileList.empty()) {
+                        state.selectedFileIndex = -1;
+                        state.imageViewer.clearImage();
+                        state.currentPreviewPath.clear();
+                        state.currentBlpBytes.clear();
+                        state.previewOriginalRGBA.clear();
+                        state.previewAdjustedRGBA.clear();
+                        state.currentMeta = ImageMeta();
+                    } else if (state.selectedFileIndex >= static_cast<int>(state.fileList.size())) {
                         state.selectedFileIndex = static_cast<int>(state.fileList.size()) - 1;
+                        if (removedCurrentPreview) {
+                            state.currentPreviewPath.clear();
+                        }
+                    } else if (removedCurrentPreview) {
+                        state.currentPreviewPath.clear();
                     }
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("清空列表")) {
+            if (ImGui::Button("清空列表", ImVec2(-1, 0))) {
                 state.fileList.clear();
                 state.fileSet.clear();
                 state.relativePathMap.clear();
@@ -402,16 +418,37 @@ void renderLeftPanel(AppState& state) {
                 }
             }
 
-            const char* formatLabels[] = {"BLP", "PNG", "JPG", "BMP", "TGA"};
-            ImGui::Combo("输出格式", &state.outputFormat, formatLabels, IM_ARRAYSIZE(formatLabels));
+            ImGui::TextUnformatted("输出格式");
+            auto drawFormatButton = [&](const char* label, int formatId, float width) {
+                if (state.outputFormat == formatId) {
+                    PushPrimaryButtonStyle();
+                } else {
+                    PushSecondaryButtonStyle();
+                }
+                const bool clicked = ImGui::Button(label, ImVec2(width, 0));
+                PopButtonStyle();
+                if (clicked) {
+                    state.outputFormat = formatId;
+                }
+            };
+            const float formatSpacing = ImGui::GetStyle().ItemSpacing.x;
+            const float formatAvail = ImGui::GetContentRegionAvail().x;
+            const float topRowW = std::max(1.0f, (formatAvail - formatSpacing * 2.0f) / 3.0f);
+            const float bottomRowW = std::max(1.0f, (formatAvail - formatSpacing) / 2.0f);
+            drawFormatButton("BLP", 0, topRowW);
+            ImGui::SameLine();
+            drawFormatButton("PNG", 1, topRowW);
+            ImGui::SameLine();
+            drawFormatButton("JPG", 2, topRowW);
+            drawFormatButton("BMP", 3, bottomRowW);
+            ImGui::SameLine();
+            drawFormatButton("TGA", 4, bottomRowW);
 
-            const bool qualityEnabled = (state.outputFormat == 0 || state.outputFormat == 2);
-            const char* qualityLabel = (state.outputFormat == 0) ? "BLP 质量"
-                                     : (state.outputFormat == 2) ? "JPG 质量"
-                                     : "质量";
-            if (!qualityEnabled) ImGui::BeginDisabled();
-            ImGui::SliderInt(qualityLabel, &state.quality, 0, 100);
-            if (!qualityEnabled) ImGui::EndDisabled();
+            if (state.outputFormat == 0) {
+                ImGui::SliderInt("BLP 质量", &state.quality, 0, 100);
+            } else {
+                ImGui::TextDisabled("非 BLP 输出质量：%d（可在“编辑”菜单调整）", state.quality);
+            }
 
             ImGui::Checkbox("覆盖已存在文件", &state.overwrite);
 

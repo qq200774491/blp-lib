@@ -160,6 +160,7 @@ void updatePreview(AppState& state, const std::string& path) {
     }
 
     state.imageViewer.setImage(state.device, displayPixels.data(), image.width, image.height);
+    state.imageViewer.fitMode = true;
 
     // Update resize controls
     state.resizeWidth = image.width;
@@ -484,19 +485,21 @@ void renderRightPanel(AppState& state) {
 
         if (hasImage && state.currentIsBlp && !state.mipEntries.empty()) {
             const float pad = 8.0f * state.dpiScale;
-            const float panelW = std::min(300.0f * state.dpiScale, std::max(220.0f * state.dpiScale, avail.x * 0.40f));
+            const float panelW = std::min(220.0f * state.dpiScale, std::max(150.0f * state.dpiScale, avail.x * 0.28f));
             const float lineH = ImGui::GetTextLineHeightWithSpacing();
-            const int maxLines = std::max(1, static_cast<int>((avail.y - 56.0f * state.dpiScale) / lineH));
+            const int maxLinesByHeight = std::max(1, static_cast<int>((avail.y - 56.0f * state.dpiScale) / lineH));
+            const int maxLines = std::min(6, maxLinesByHeight);
             const int shownCount = std::min(static_cast<int>(state.mipEntries.size()), maxLines);
             const int restCount = static_cast<int>(state.mipEntries.size()) - shownCount;
-            float panelH = (2.0f * lineH) + shownCount * lineH + (restCount > 0 ? lineH : 0.0f);
+            float panelH = lineH + shownCount * lineH + (restCount > 0 ? lineH : 0.0f) + 8.0f * state.dpiScale;
             panelH = std::min(panelH, std::max(80.0f * state.dpiScale, avail.y - 2.0f * pad));
 
             const float panelX = stagePos.x + avail.x - panelW - pad;
             const float panelY = std::max(stagePos.y + pad, stagePos.y + avail.y - panelH - pad);
 
             ImGui::SetCursorPos(ImVec2(panelX, panelY));
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(1.0f, 1.0f, 1.0f, 0.76f));
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.22f));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.961f, 0.973f, 1.000f, 0.95f));
             ImGui::BeginChild(
                 "CanvasMipOverlay",
                 ImVec2(panelW, panelH),
@@ -504,7 +507,6 @@ void renderRightPanel(AppState& state) {
                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
             ImGui::TextUnformatted("BLP 层级");
-            ImGui::Separator();
 
             const int baseW = std::max(1, state.currentMeta.width);
             const int baseH = std::max(1, state.currentMeta.height);
@@ -520,7 +522,7 @@ void renderRightPanel(AppState& state) {
             }
 
             ImGui::EndChild();
-            ImGui::PopStyleColor();
+            ImGui::PopStyleColor(2);
         }
 
         ImGui::EndChild();

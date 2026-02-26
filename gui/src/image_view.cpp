@@ -3,6 +3,29 @@
 #include <algorithm>
 #include <cmath>
 
+namespace {
+
+void drawCheckerboard(ImDrawList* drawList, const ImVec2& minPos, const ImVec2& maxPos, float cellSize) {
+    if (!drawList || cellSize <= 1.0f) return;
+    if (maxPos.x <= minPos.x || maxPos.y <= minPos.y) return;
+
+    const ImU32 light = IM_COL32(236, 240, 246, 255);
+    const ImU32 dark = IM_COL32(208, 215, 226, 255);
+
+    int row = 0;
+    for (float y = minPos.y; y < maxPos.y; y += cellSize, ++row) {
+        int col = 0;
+        const float y2 = std::min(y + cellSize, maxPos.y);
+        for (float x = minPos.x; x < maxPos.x; x += cellSize, ++col) {
+            const float x2 = std::min(x + cellSize, maxPos.x);
+            const ImU32 color = ((row + col) & 1) ? dark : light;
+            drawList->AddRectFilled(ImVec2(x, y), ImVec2(x2, y2), color);
+        }
+    }
+}
+
+} // namespace
+
 void ImageViewer::init(ID3D11Device* device) {
     checkerboard = ImageTexture::createCheckerboard(device);
 }
@@ -72,18 +95,17 @@ void ImageViewer::render(float viewW, float viewH) {
 
     ImVec2 cursorPos = ImGui::GetCursorScreenPos();
     ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const ImVec2 regionMin = cursorPos;
+    const ImVec2 regionMax = ImVec2(cursorPos.x + viewW, cursorPos.y + viewH);
 
     // Draw background
     ImVec2 bgMin = ImVec2(cursorPos.x + offsetX, cursorPos.y + offsetY);
     ImVec2 bgMax = ImVec2(bgMin.x + displayW, bgMin.y + displayH);
 
-    if (useCheckerboard && checkerboard.isValid()) {
-        float uvScaleX = displayW / static_cast<float>(checkerboard.width);
-        float uvScaleY = displayH / static_cast<float>(checkerboard.height);
-        drawList->AddImage(
-            (ImTextureID)checkerboard.srv,
-            bgMin, bgMax,
-            ImVec2(0, 0), ImVec2(uvScaleX, uvScaleY));
+    if (useCheckerboard) {
+        const ImVec2 clipMin(std::max(bgMin.x, regionMin.x), std::max(bgMin.y, regionMin.y));
+        const ImVec2 clipMax(std::min(bgMax.x, regionMax.x), std::min(bgMax.y, regionMax.y));
+        drawCheckerboard(drawList, clipMin, clipMax, 10.0f);
     } else {
         drawList->AddRectFilled(bgMin, bgMax,
             IM_COL32(static_cast<int>(bgColor[0] * 255),
@@ -97,8 +119,6 @@ void ImageViewer::render(float viewW, float viewH) {
         bgMin, bgMax);
 
     // Handle input: zoom with wheel, pan with drag
-    ImVec2 regionMin = cursorPos;
-    ImVec2 regionMax = ImVec2(cursorPos.x + viewW, cursorPos.y + viewH);
     ImGui::InvisibleButton("##imageview", ImVec2(viewW, viewH));
 
     if (ImGui::IsItemHovered()) {

@@ -12,7 +12,7 @@ struct AppSettings {
     int outputFormat = 0;  // 0=BLP 1=PNG 2=JPG 3=BMP 4=TGA
     int quality = 100;
     bool overwrite = false;
-    bool recursive = false;
+    bool recursive = true;
 
     std::string lastInputDir;
     std::string lastOutputDir;
