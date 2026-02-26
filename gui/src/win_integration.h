@@ -6,6 +6,10 @@
 
 bool isBlpAssociated();
 bool registerBlpAssociation(const std::wstring& appPath, std::string* outError);
+bool isPngAssociated();
+bool registerPngAssociation(const std::wstring& appPath, std::string* outError);
+bool isTgaAssociated();
+bool registerTgaAssociation(const std::wstring& appPath, std::string* outError);
 bool isThumbnailRegistered();
 bool callDllEntry(const std::wstring& dllPath, const char* entry, std::string* outError);
 

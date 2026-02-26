@@ -228,6 +228,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
 
     // Check association status
     g_state.blpAssociated = isBlpAssociated();
+    g_state.pngAssociated = isPngAssociated();
+    g_state.tgaAssociated = isTgaAssociated();
     g_state.thumbnailRegistered = isThumbnailRegistered();
 
     // Handle command line arguments

@@ -8,7 +8,7 @@
 
 namespace {
 
-const wchar_t* kBlpProgId = L"BLPViewer.File";
+const wchar_t* kViewerProgId = L"BLPViewer.File";
 const wchar_t* kThumbnailClsid = L"{27A35239-0B87-4085-8944-463B440D162F}";
 const wchar_t* kThumbnailHandler = L"{E357FCCD-A995-4576-B01F-234630154E96}";
 
@@ -16,6 +16,90 @@ bool regSetString(HKEY hKey, const wchar_t* valueName, const wchar_t* data) {
     return RegSetValueExW(hKey, valueName, 0, REG_SZ,
                           reinterpret_cast<const BYTE*>(data),
                           static_cast<DWORD>((wcslen(data) + 1) * sizeof(wchar_t))) == ERROR_SUCCESS;
+}
+
+bool createKeyAndSet(const wchar_t* subKey, const wchar_t* value) {
+    HKEY hKey = nullptr;
+    std::wstring fullKey = std::wstring(L"Software\\Classes\\") + subKey;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, fullKey.c_str(), 0, nullptr,
+                        REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr,
+                        &hKey, nullptr) != ERROR_SUCCESS) {
+        return false;
+    }
+    const bool ok = regSetString(hKey, nullptr, value);
+    RegCloseKey(hKey);
+    return ok;
+}
+
+bool isExtAssociated(const wchar_t* ext) {
+    wchar_t buffer[256] = {};
+    DWORD size = ARRAYSIZE(buffer);
+    HRESULT hr = AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_PROGID,
+                                   ext, nullptr, buffer, &size);
+    if (SUCCEEDED(hr)) {
+        return _wcsicmp(buffer, kViewerProgId) == 0;
+    }
+
+    std::wstring extKey = std::wstring(L"Software\\Classes\\") + ext;
+    HKEY hKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, extKey.c_str(), 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        wchar_t val[256] = {};
+        DWORD valSize = sizeof(val);
+        DWORD type = 0;
+        if (RegQueryValueExW(hKey, nullptr, nullptr, &type,
+                             reinterpret_cast<BYTE*>(val), &valSize) == ERROR_SUCCESS) {
+            RegCloseKey(hKey);
+            return _wcsicmp(val, kViewerProgId) == 0;
+        }
+        RegCloseKey(hKey);
+    }
+    return false;
+}
+
+bool registerExtAssociation(const std::wstring& appPath,
+                            const wchar_t* ext,
+                            const wchar_t* contentType,
+                            std::string* outError) {
+    std::wstring extKey = std::wstring(L"Software\\Classes\\") + ext;
+    HKEY hKey = nullptr;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, extKey.c_str(), 0, nullptr,
+                        REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr,
+                        &hKey, nullptr) != ERROR_SUCCESS) {
+        if (outError) *outError = "写入注册表失败";
+        return false;
+    }
+    regSetString(hKey, nullptr, kViewerProgId);
+    regSetString(hKey, L"PerceivedType", L"image");
+    if (contentType && *contentType) {
+        regSetString(hKey, L"Content Type", contentType);
+    }
+    RegCloseKey(hKey);
+
+    std::wstring openWithKey = std::wstring(ext) + L"\\OpenWithProgids";
+    createKeyAndSet(openWithKey.c_str(), L"");
+    {
+        HKEY openWith = nullptr;
+        std::wstring fullOpenWithKey = std::wstring(L"Software\\Classes\\") + openWithKey;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, fullOpenWithKey.c_str(), 0, KEY_WRITE, &openWith) == ERROR_SUCCESS) {
+            RegSetValueExW(openWith, kViewerProgId, 0, REG_SZ, reinterpret_cast<const BYTE*>(L""), sizeof(wchar_t));
+            RegCloseKey(openWith);
+        }
+    }
+
+    createKeyAndSet(L"BLPViewer.File", L"BLP Viewer Image");
+
+    std::wstring iconValue = appPath + L",0";
+    createKeyAndSet(L"BLPViewer.File\\DefaultIcon", iconValue.c_str());
+
+    std::wstring cmdValue = L"\"" + appPath + L"\" \"%1\"";
+    createKeyAndSet(L"BLPViewer.File\\shell\\open\\command", cmdValue.c_str());
+
+    std::wstring exeName = std::filesystem::path(appPath).filename().wstring();
+    std::wstring appKey = L"Applications\\" + exeName + L"\\shell\\open\\command";
+    createKeyAndSet(appKey.c_str(), cmdValue.c_str());
+
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+    return true;
 }
 
 } // namespace
@@ -31,90 +115,27 @@ std::wstring getAppDir() {
 }
 
 bool isBlpAssociated() {
-    wchar_t buffer[256] = {};
-    DWORD size = ARRAYSIZE(buffer);
-    HRESULT hr = AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_PROGID,
-                                   L".blp", nullptr, buffer, &size);
-    if (SUCCEEDED(hr)) {
-        return _wcsicmp(buffer, kBlpProgId) == 0;
-    }
-
-    HKEY hKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER,
-                      L"Software\\Classes\\.blp", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        wchar_t val[256] = {};
-        DWORD valSize = sizeof(val);
-        DWORD type = 0;
-        if (RegQueryValueExW(hKey, nullptr, nullptr, &type,
-                             reinterpret_cast<BYTE*>(val), &valSize) == ERROR_SUCCESS) {
-            RegCloseKey(hKey);
-            return _wcsicmp(val, kBlpProgId) == 0;
-        }
-        RegCloseKey(hKey);
-    }
-
-    return false;
+    return isExtAssociated(L".blp");
 }
 
 bool registerBlpAssociation(const std::wstring& appPath, std::string* outError) {
-    auto createKeyAndSet = [](const wchar_t* subKey, const wchar_t* value) -> bool {
-        HKEY hKey = nullptr;
-        DWORD disposition = 0;
-        std::wstring fullKey = std::wstring(L"Software\\Classes\\") + subKey;
-        if (RegCreateKeyExW(HKEY_CURRENT_USER, fullKey.c_str(), 0, nullptr,
-                           REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr,
-                           &hKey, &disposition) != ERROR_SUCCESS) {
-            return false;
-        }
-        bool ok = regSetString(hKey, nullptr, value);
-        RegCloseKey(hKey);
-        return ok;
-    };
+    return registerExtAssociation(appPath, L".blp", L"image/blp", outError);
+}
 
-    // .blp -> BLPViewer.File
-    {
-        HKEY hKey = nullptr;
-        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Classes\\.blp", 0, nullptr,
-                           REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr,
-                           &hKey, nullptr) != ERROR_SUCCESS) {
-            if (outError) *outError = "写入注册表失败";
-            return false;
-        }
-        regSetString(hKey, nullptr, kBlpProgId);
-        regSetString(hKey, L"PerceivedType", L"image");
-        regSetString(hKey, L"Content Type", L"image/blp");
-        RegCloseKey(hKey);
-    }
+bool isPngAssociated() {
+    return isExtAssociated(L".png");
+}
 
-    // OpenWithProgids
-    createKeyAndSet(L".blp\\OpenWithProgids", L"");
-    {
-        HKEY hKey = nullptr;
-        std::wstring key = L"Software\\Classes\\.blp\\OpenWithProgids";
-        if (RegOpenKeyExW(HKEY_CURRENT_USER, key.c_str(), 0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
-            RegSetValueExW(hKey, kBlpProgId, 0, REG_SZ, reinterpret_cast<const BYTE*>(L""), sizeof(wchar_t));
-            RegCloseKey(hKey);
-        }
-    }
+bool registerPngAssociation(const std::wstring& appPath, std::string* outError) {
+    return registerExtAssociation(appPath, L".png", L"image/png", outError);
+}
 
-    // ProgId
-    createKeyAndSet(L"BLPViewer.File", L"BLP Image");
+bool isTgaAssociated() {
+    return isExtAssociated(L".tga");
+}
 
-    // DefaultIcon
-    std::wstring iconValue = appPath + L",0";
-    createKeyAndSet(L"BLPViewer.File\\DefaultIcon", iconValue.c_str());
-
-    // shell/open/command
-    std::wstring cmdValue = L"\"" + appPath + L"\" \"%1\"";
-    createKeyAndSet(L"BLPViewer.File\\shell\\open\\command", cmdValue.c_str());
-
-    // Applications entry
-    std::wstring exeName = std::filesystem::path(appPath).filename().wstring();
-    std::wstring appKey = L"Applications\\" + exeName + L"\\shell\\open\\command";
-    createKeyAndSet(appKey.c_str(), cmdValue.c_str());
-
-    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
-    return true;
+bool registerTgaAssociation(const std::wstring& appPath, std::string* outError) {
+    return registerExtAssociation(appPath, L".tga", L"image/x-tga", outError);
 }
 
 bool isThumbnailRegistered() {

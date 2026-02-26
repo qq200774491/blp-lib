@@ -241,7 +241,7 @@ void renderMenuBar(AppState& state) {
     }
 
     if (ImGui::BeginMenu("工具")) {
-        if (ImGui::MenuItem(state.blpAssociated ? "BLP 打开方式：已关联" : "关联 BLP 打开方式")) {
+        if (ImGui::MenuItem(state.blpAssociated ? "默认打开 .blp：已设置" : "设置默认打开 .blp")) {
             std::string error;
             std::wstring appPath = getAppPath();
             if (registerBlpAssociation(appPath, &error)) {
@@ -255,7 +255,36 @@ void renderMenuBar(AppState& state) {
                 state.logMessages.push_back(msg);
             }
         }
+        if (ImGui::MenuItem(state.pngAssociated ? "默认打开 .png：已设置" : "设置默认打开 .png")) {
+            std::string error;
+            std::wstring appPath = getAppPath();
+            if (registerPngAssociation(appPath, &error)) {
+                state.pngAssociated = isPngAssociated();
+                state.logMessages.push_back(state.pngAssociated
+                    ? "已关联 .png 打开方式"
+                    : "已写入关联项，但系统默认应用未生效");
+            } else {
+                char msg[256];
+                std::snprintf(msg, sizeof(msg), "关联 .png 失败：%s", error.c_str());
+                state.logMessages.push_back(msg);
+            }
+        }
+        if (ImGui::MenuItem(state.tgaAssociated ? "默认打开 .tga：已设置" : "设置默认打开 .tga")) {
+            std::string error;
+            std::wstring appPath = getAppPath();
+            if (registerTgaAssociation(appPath, &error)) {
+                state.tgaAssociated = isTgaAssociated();
+                state.logMessages.push_back(state.tgaAssociated
+                    ? "已关联 .tga 打开方式"
+                    : "已写入关联项，但系统默认应用未生效");
+            } else {
+                char msg[256];
+                std::snprintf(msg, sizeof(msg), "关联 .tga 失败：%s", error.c_str());
+                state.logMessages.push_back(msg);
+            }
+        }
 
+        ImGui::Separator();
         std::wstring dllPath = getAppDir() + L"\\blp_thumbnail.dll";
         bool dllExists = std::filesystem::exists(dllPath);
         bool checked = state.thumbnailRegistered;
@@ -278,6 +307,8 @@ void renderMenuBar(AppState& state) {
 
         if (ImGui::MenuItem("重新检测系统状态")) {
             state.blpAssociated = isBlpAssociated();
+            state.pngAssociated = isPngAssociated();
+            state.tgaAssociated = isTgaAssociated();
             state.thumbnailRegistered = isThumbnailRegistered();
         }
         ImGui::EndMenu();

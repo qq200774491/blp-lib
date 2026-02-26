@@ -109,6 +109,8 @@ struct AppState {
 
     // Association status
     bool blpAssociated = false;
+    bool pngAssociated = false;
+    bool tgaAssociated = false;
     bool thumbnailRegistered = false;
 
     // DPI scale
