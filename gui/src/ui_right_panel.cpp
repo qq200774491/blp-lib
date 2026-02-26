@@ -344,10 +344,22 @@ void renderRightPanel(AppState& state) {
 
     // Image preview area
     {
-        float previewH = ImGui::GetContentRegionAvail().y;
-        // Reserve space for mip list, resize, zoom controls
-        if (hasImage) previewH -= 210 * state.dpiScale;
-        previewH = std::max(previewH, 200.0f);
+        float remainingH = ImGui::GetContentRegionAvail().y;
+        float previewH = remainingH;
+        if (hasImage) {
+            float inspectorReserve = 250.0f * state.dpiScale;
+            if (state.currentIsBlp && !state.mipEntries.empty()) {
+                inspectorReserve += 60.0f * state.dpiScale;
+            }
+            if (remainingH <= 560.0f * state.dpiScale) {
+                inspectorReserve += 40.0f * state.dpiScale;
+            }
+            previewH -= inspectorReserve;
+        }
+        const float minPreviewH = (remainingH <= 560.0f * state.dpiScale)
+            ? (160.0f * state.dpiScale)
+            : (200.0f * state.dpiScale);
+        previewH = std::max(previewH, minPreviewH);
 
         ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.878f, 0.894f, 0.922f, 1.0f));
         ImGui::BeginChild("PreviewArea", ImVec2(-1, previewH), ImGuiChildFlags_Borders);
@@ -486,7 +498,7 @@ void renderRightPanel(AppState& state) {
         ImGui::EndChild();
     }
 
-    if (hasImage && ImGui::CollapsingHeader("尺寸调整", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (hasImage && ImGui::CollapsingHeader("尺寸调整")) {
         if (ImGui::SliderInt("宽##ResizeWidth", &state.resizeWidth, 1, 16384)) {
             state.resizeWidth = snapResizeValue(state.resizeWidth);
             if (state.resizeLockAspect && state.previewOrigW > 0 && state.previewOrigH > 0) {

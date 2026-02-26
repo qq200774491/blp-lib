@@ -200,6 +200,7 @@ void runConvertForPathsInternal(AppState& state, const std::vector<std::string>&
     state.lastConvertSuccess = 0;
     state.lastConvertFailed = 0;
 
+    state.taskDrawerVisible = true;
     state.converting = true;
     state.convertProgress = 0.0f;
 

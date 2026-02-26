@@ -216,8 +216,9 @@ void renderMenuBar(AppState& state) {
     if (ImGui::BeginMenu("视图")) {
         ImGui::MenuItem("显示任务面板", nullptr, &state.taskDrawerVisible);
         if (ImGui::MenuItem("重置布局")) {
-            state.leftPanelWidth = 340.0f;
-            state.taskDrawerHeight = 190.0f;
+            state.leftPanelWidth = 320.0f;
+            state.taskDrawerHeight = 170.0f;
+            state.taskDrawerVisible = false;
         }
         ImGui::EndMenu();
     }
@@ -524,15 +525,29 @@ void renderMainUI(AppState& state) {
     renderMenuBar(state);
 
     const float statusBarH = 22.0f * state.dpiScale;
+    const bool compactLayout = viewport->WorkSize.y <= 780.0f * state.dpiScale;
+    const float minDrawerH = compactLayout ? (96.0f * state.dpiScale) : (120.0f * state.dpiScale);
+    const float maxDrawerH = compactLayout ? (240.0f * state.dpiScale) : (420.0f * state.dpiScale);
+    if (state.taskDrawerVisible) {
+        state.taskDrawerHeight = std::clamp(state.taskDrawerHeight, minDrawerH, maxDrawerH);
+    }
+
     const float drawerSplitterH = state.taskDrawerVisible ? (5.0f * state.dpiScale) : 0.0f;
-    const float drawerH = state.taskDrawerVisible ? state.taskDrawerHeight : 0.0f;
+    float drawerH = state.taskDrawerVisible ? state.taskDrawerHeight : 0.0f;
+    const float minWorkspaceH = compactLayout ? (220.0f * state.dpiScale) : (180.0f * state.dpiScale);
     float contentH = ImGui::GetContentRegionAvail().y - statusBarH - drawerSplitterH - drawerH;
-    contentH = std::max(contentH, 180.0f * state.dpiScale);
+    if (state.taskDrawerVisible && contentH < minWorkspaceH) {
+        drawerH = std::max(minDrawerH, drawerH - (minWorkspaceH - contentH));
+        state.taskDrawerHeight = drawerH;
+        contentH = ImGui::GetContentRegionAvail().y - statusBarH - drawerSplitterH - drawerH;
+    }
+    contentH = std::max(contentH, minWorkspaceH);
 
     ImGui::BeginChild("WorkspaceRoot", ImVec2(0, contentH), ImGuiChildFlags_None);
     const float paneHeight = ImGui::GetContentRegionAvail().y;
-    const float minLeftW = 280.0f * state.dpiScale;
-    const float maxLeftW = std::max(minLeftW, ImGui::GetContentRegionAvail().x - 260.0f * state.dpiScale);
+    const float minLeftW = compactLayout ? (250.0f * state.dpiScale) : (280.0f * state.dpiScale);
+    const float rightReserveW = compactLayout ? (220.0f * state.dpiScale) : (260.0f * state.dpiScale);
+    const float maxLeftW = std::max(minLeftW, ImGui::GetContentRegionAvail().x - rightReserveW);
     state.leftPanelWidth = std::clamp(state.leftPanelWidth, minLeftW, maxLeftW);
 
     ImGui::BeginChild("LeftPanel", ImVec2(state.leftPanelWidth, paneHeight), ImGuiChildFlags_None);
@@ -567,11 +582,9 @@ void renderMainUI(AppState& state) {
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.176f, 0.424f, 0.875f, 0.8f));
         ImGui::Button("##TaskDrawerSplitter", ImVec2(-1, drawerSplitterH));
         if (ImGui::IsItemActive()) {
-            const float minH = 120.0f * state.dpiScale;
-            const float maxH = 420.0f * state.dpiScale;
             state.taskDrawerHeight = std::clamp(
                 state.taskDrawerHeight - ImGui::GetIO().MouseDelta.y,
-                minH, maxH);
+                minDrawerH, maxDrawerH);
         }
         if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);

@@ -41,7 +41,7 @@ struct AppState {
     AppSettings settings;
 
     // Left panel width (splitter)
-    float leftPanelWidth = 340.0f;
+    float leftPanelWidth = 320.0f;
 
     // File list
     std::vector<std::string> fileList;
@@ -65,8 +65,8 @@ struct AppState {
     int lastConvertTotal = 0;
     int lastConvertSuccess = 0;
     int lastConvertFailed = 0;
-    bool taskDrawerVisible = true;
-    float taskDrawerHeight = 190.0f;
+    bool taskDrawerVisible = false;
+    float taskDrawerHeight = 170.0f;
     bool showAboutPopup = false;
 
     // Preview state
