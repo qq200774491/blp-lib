@@ -99,6 +99,7 @@ struct AppState {
     int resizeHeight = 0;
     bool resizeLockAspect = true;
     bool resizeAspectSyncing = false;
+    float previewCanvasBg[3] = {0.878f, 0.894f, 0.922f};
 
     // BLP API
     BlpApi blpApi;
