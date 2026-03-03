@@ -25,6 +25,106 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 static AppState g_state;
 static DX11State g_dx;
 
+static void sanitizeWindowRect(AppSettings& settings) {
+    constexpr int kDefaultX = 100;
+    constexpr int kDefaultY = 100;
+    constexpr int kDefaultW = 1200;
+    constexpr int kDefaultH = 760;
+    constexpr int kMinW = 640;
+    constexpr int kMinH = 420;
+
+    if (settings.windowW <= 0 || settings.windowH <= 0 ||
+        settings.windowW > 10000 || settings.windowH > 10000) {
+        settings.windowW = kDefaultW;
+        settings.windowH = kDefaultH;
+    }
+    if (settings.windowW < kMinW) settings.windowW = kMinW;
+    if (settings.windowH < kMinH) settings.windowH = kMinH;
+
+    auto centerOnPrimaryMonitor = [&]() {
+        POINT origin = {0, 0};
+        HMONITOR primary = MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
+        MONITORINFO mi = {};
+        mi.cbSize = sizeof(mi);
+        if (!GetMonitorInfoW(primary, &mi)) {
+            settings.windowX = kDefaultX;
+            settings.windowY = kDefaultY;
+            settings.windowW = kDefaultW;
+            settings.windowH = kDefaultH;
+            return;
+        }
+
+        int workW = mi.rcWork.right - mi.rcWork.left;
+        int workH = mi.rcWork.bottom - mi.rcWork.top;
+        if (settings.windowW > workW) settings.windowW = workW;
+        if (settings.windowH > workH) settings.windowH = workH;
+        settings.windowX = mi.rcWork.left + (workW - settings.windowW) / 2;
+        settings.windowY = mi.rcWork.top + (workH - settings.windowH) / 2;
+    };
+
+    // -32000 is a common minimized window coordinate on Windows.
+    if (settings.windowX <= -30000 || settings.windowY <= -30000) {
+        centerOnPrimaryMonitor();
+        return;
+    }
+
+    RECT windowRect = {
+        settings.windowX,
+        settings.windowY,
+        settings.windowX + settings.windowW,
+        settings.windowY + settings.windowH
+    };
+    HMONITOR monitor = MonitorFromRect(&windowRect, MONITOR_DEFAULTTONULL);
+    if (!monitor) {
+        centerOnPrimaryMonitor();
+        return;
+    }
+
+    MONITORINFO mi = {};
+    mi.cbSize = sizeof(mi);
+    if (!GetMonitorInfoW(monitor, &mi)) {
+        centerOnPrimaryMonitor();
+        return;
+    }
+
+    const int workW = mi.rcWork.right - mi.rcWork.left;
+    const int workH = mi.rcWork.bottom - mi.rcWork.top;
+    if (settings.windowW > workW) settings.windowW = workW;
+    if (settings.windowH > workH) settings.windowH = workH;
+
+    if (settings.windowX < mi.rcWork.left) settings.windowX = mi.rcWork.left;
+    if (settings.windowY < mi.rcWork.top) settings.windowY = mi.rcWork.top;
+    if (settings.windowX + settings.windowW > mi.rcWork.right) {
+        settings.windowX = mi.rcWork.right - settings.windowW;
+    }
+    if (settings.windowY + settings.windowH > mi.rcWork.bottom) {
+        settings.windowY = mi.rcWork.bottom - settings.windowH;
+    }
+}
+
+static void saveWindowRect(AppSettings& settings, HWND hWnd) {
+    RECT rect = {};
+    bool validRect = false;
+
+    WINDOWPLACEMENT placement = {};
+    placement.length = sizeof(placement);
+    if (GetWindowPlacement(hWnd, &placement)) {
+        rect = placement.rcNormalPosition;
+        validRect = (rect.right > rect.left && rect.bottom > rect.top);
+    }
+
+    if (!validRect && GetWindowRect(hWnd, &rect)) {
+        validRect = (rect.right > rect.left && rect.bottom > rect.top);
+    }
+
+    if (!validRect) return;
+
+    settings.windowX = rect.left;
+    settings.windowY = rect.top;
+    settings.windowW = rect.right - rect.left;
+    settings.windowH = rect.bottom - rect.top;
+}
+
 static std::string wideToUtf8(const std::wstring& wide) {
     if (wide.empty()) return {};
     int sz = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, nullptr, 0, nullptr, nullptr);
@@ -115,14 +215,7 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     }
 
     case WM_CLOSE: {
-        // Save window position
-        RECT rect;
-        if (GetWindowRect(hWnd, &rect)) {
-            g_state.settings.windowX = rect.left;
-            g_state.settings.windowY = rect.top;
-            g_state.settings.windowW = rect.right - rect.left;
-            g_state.settings.windowH = rect.bottom - rect.top;
-        }
+        saveWindowRect(g_state.settings, hWnd);
         g_state.settings.splitterPos = g_state.leftPanelWidth;
         g_state.settings.outputFormat = g_state.outputFormat;
         g_state.settings.quality = g_state.quality;
@@ -158,12 +251,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
 
     // Load settings
     g_state.settings.load();
+    sanitizeWindowRect(g_state.settings);
 
     // Create window
     HWND hwnd = CreateWindowExW(
         WS_EX_ACCEPTFILES,
         wc.lpszClassName,
-        L"blp\x67e5\x770b\x5668 1.3v - \x5c0f\x4e3a",
+        L"blp\x67e5\x770b\x5668 1.4v - \x5c0f\x4e3a",
         WS_OVERLAPPEDWINDOW,
         g_state.settings.windowX, g_state.settings.windowY,
         g_state.settings.windowW, g_state.settings.windowH,
