@@ -9,7 +9,6 @@ struct ImageTexture {
     int height = 0;
 
     bool createFromRGBA(ID3D11Device* device, const uint8_t* rgba, int w, int h);
-    void updateFromRGBA(ID3D11DeviceContext* ctx, const uint8_t* rgba, int w, int h);
     void release();
     bool isValid() const;
 

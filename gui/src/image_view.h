@@ -18,7 +18,6 @@ struct ImageViewer {
 
     void init(ID3D11Device* device);
     void setImage(ID3D11Device* device, const uint8_t* rgba, int w, int h);
-    void updateImage(ID3D11DeviceContext* ctx, const uint8_t* rgba, int w, int h);
     void clearImage();
     void fitToView(float viewW, float viewH);
     void setZoom(float value, float pivotX = 0.5f, float pivotY = 0.5f);

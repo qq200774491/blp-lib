@@ -20,7 +20,6 @@ constexpr ImVec4 kColorDangerButtonActive = ImVec4(0.620f, 0.196f, 0.176f, 1.00f
 constexpr ImVec4 kColorSuccess = ImVec4(0.173f, 0.627f, 0.173f, 1.00f);
 constexpr ImVec4 kColorWarning = ImVec4(0.902f, 0.494f, 0.133f, 1.00f);
 constexpr ImVec4 kColorError   = ImVec4(0.753f, 0.224f, 0.169f, 1.00f);
-constexpr ImVec4 kColorInfo    = ImVec4(0.176f, 0.424f, 0.875f, 1.00f);
 
 } // namespace
 
@@ -85,7 +84,6 @@ void ApplyImGuiStyle(float dpiScale) {
 ImVec4 UiColorSuccess() { return kColorSuccess; }
 ImVec4 UiColorWarning() { return kColorWarning; }
 ImVec4 UiColorError() { return kColorError; }
-ImVec4 UiColorInfo() { return kColorInfo; }
 
 void PushPrimaryButtonStyle() {
     ImGui::PushStyleColor(ImGuiCol_Button, kColorPrimaryButton);

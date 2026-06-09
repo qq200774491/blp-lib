@@ -54,51 +54,6 @@ int autoMipCount(int width, int height) {
     return count;
 }
 
-int snapResizeValue(int value) {
-    constexpr int kSnapTargets[] = {64, 128, 256, 512};
-    constexpr int kSnapDistance = 8;
-
-    int best = value;
-    int bestDistance = kSnapDistance + 1;
-    for (int target : kSnapTargets) {
-        const int dist = std::abs(value - target);
-        if (dist <= kSnapDistance && dist < bestDistance) {
-            best = target;
-            bestDistance = dist;
-        }
-    }
-    return best;
-}
-
-std::string normalizeInputPath(const std::string& raw) {
-    std::string cleaned = raw;
-
-    // Trim whitespace
-    while (!cleaned.empty() && (cleaned.front() == ' ' || cleaned.front() == '\t'))
-        cleaned.erase(cleaned.begin());
-    while (!cleaned.empty() && (cleaned.back() == ' ' || cleaned.back() == '\t'))
-        cleaned.pop_back();
-
-    // Strip surrounding quotes
-    if (cleaned.size() >= 2) {
-        char first = cleaned.front();
-        char last = cleaned.back();
-        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-            cleaned = cleaned.substr(1, cleaned.size() - 2);
-        }
-    }
-
-    if (cleaned.empty()) return cleaned;
-
-    namespace fs = std::filesystem;
-    try {
-        fs::path p = fsPathFromUtf8(cleaned);
-        return fsPathToUtf8(fs::weakly_canonical(p));
-    } catch (...) {
-        return cleaned;
-    }
-}
-
 std::string formatFileSize(uint64_t bytes) {
     char buf[64];
     const double kb = 1024.0;

@@ -42,11 +42,6 @@ void ImageViewer::setImage(ID3D11Device* device, const uint8_t* rgba, int w, int
     fitMode = false;
 }
 
-void ImageViewer::updateImage(ID3D11DeviceContext* ctx, const uint8_t* rgba, int w, int h) {
-    if (!hasImage || w != imageWidth || h != imageHeight) return;
-    texture.updateFromRGBA(ctx, rgba, w, h);
-}
-
 void ImageViewer::clearImage() {
     texture.release();
     hasImage = false;

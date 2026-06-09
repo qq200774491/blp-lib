@@ -40,17 +40,6 @@ bool ImageTexture::createFromRGBA(ID3D11Device* device, const uint8_t* rgba, int
     return true;
 }
 
-void ImageTexture::updateFromRGBA(ID3D11DeviceContext* ctx, const uint8_t* rgba, int w, int h) {
-    if (!srv || !ctx || w != width || h != height) return;
-
-    ID3D11Resource* resource = nullptr;
-    srv->GetResource(&resource);
-    if (resource) {
-        ctx->UpdateSubresource(resource, 0, nullptr, rgba, w * 4, 0);
-        resource->Release();
-    }
-}
-
 void ImageTexture::release() {
     if (srv) {
         srv->Release();

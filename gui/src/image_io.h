@@ -32,5 +32,3 @@ bool writeImageFile(const std::string& outputPath,
                     int mipCount,
                     std::string* outError,
                     BlpApi* blpApi);
-
-std::string formatFileSize(uint64_t bytes);

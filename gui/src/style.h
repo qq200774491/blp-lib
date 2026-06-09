@@ -8,7 +8,6 @@ void LoadFonts(float dpiScale);
 ImVec4 UiColorSuccess();
 ImVec4 UiColorWarning();
 ImVec4 UiColorError();
-ImVec4 UiColorInfo();
 
 void PushPrimaryButtonStyle();
 void PushSecondaryButtonStyle();

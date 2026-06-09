@@ -186,6 +186,14 @@ void refreshPreviewDisplay(AppState& state) {
     state.imageViewer.setImage(state.device, displayPixels.data(), w, h);
 }
 
+// Map the shared output-format index (AppState::outputFormat) to an extension.
+// Mirrors normalizedFormatStr() in ui_left_panel.cpp, which is file-local there.
+const char* singleSaveFormatStr(int formatIndex) {
+    static const char* formats[] = {"blp", "png", "jpg", "bmp", "tga"};
+    if (formatIndex >= 0 && formatIndex < 5) return formats[formatIndex];
+    return "blp";
+}
+
 bool saveAlignedToSource(AppState& state, const std::vector<uint8_t>& rgba,
                          int w, int h, std::string* outError) {
     if (state.currentPreviewPath.empty()) {
@@ -194,9 +202,17 @@ bool saveAlignedToSource(AppState& state, const std::vector<uint8_t>& rgba,
     }
 
     namespace fs = std::filesystem;
-    std::string ext = fsPathFromUtf8(state.currentPreviewPath).extension().string();
-    if (!ext.empty() && ext[0] == '.') ext = ext.substr(1);
-    std::string format = normalizeFormat(ext);
+    // Output format follows the shared "输出格式" selection (left panel), so
+    // single-image save can convert format, not just overwrite in place.
+    std::string format = singleSaveFormatStr(state.outputFormat);
+
+    // Write into the source folder, swapping the extension to the chosen format.
+    // Same format  -> overwrites the original in place (previous behavior).
+    // Diff. format -> writes a new file alongside it and keeps the original.
+    fs::path outFsPath = fsPathFromUtf8(state.currentPreviewPath);
+    outFsPath.replace_extension("." + format);
+    std::string outPath = fsPathToUtf8(outFsPath);
+    const bool formatChanged = (outPath != state.currentPreviewPath);
 
     RgbaImage img;
     img.width = w;
@@ -204,8 +220,22 @@ bool saveAlignedToSource(AppState& state, const std::vector<uint8_t>& rgba,
     img.pixels = rgba;
 
     int mipCount = (format == "blp") ? autoMipCount(w, h) : 1;
-    if (!writeImageFile(state.currentPreviewPath, format, img, state.quality, mipCount, outError, &state.blpApi)) {
+    if (!writeImageFile(outPath, format, img, state.quality, mipCount, outError, &state.blpApi)) {
         return false;
+    }
+
+    // Switch the working file to what we just wrote; register the new file in
+    // the resource list and select it so the list reflects the conversion.
+    state.currentPreviewPath = outPath;
+    if (formatChanged) {
+        if (!state.fileSet.count(outPath)) {
+            state.fileList.push_back(outPath);
+            state.fileSet.insert(outPath);
+        }
+        auto it = std::find(state.fileList.begin(), state.fileList.end(), outPath);
+        if (it != state.fileList.end()) {
+            state.selectedFileIndex = static_cast<int>(it - state.fileList.begin());
+        }
     }
 
     // Update state

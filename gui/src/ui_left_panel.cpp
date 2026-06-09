@@ -265,6 +265,37 @@ void doConvertAll(AppState& state) {
     runConvertForPathsInternal(state, state.fileList);
 }
 
+// Shared "输出格式" selector. Bound to state.outputFormat, which drives both
+// batch conversion and single-image save (保存尺寸/对齐), so it is shown in both
+// the 资源列表 and 批量转换 tabs and stays in sync.
+void drawOutputFormatSelector(AppState& state) {
+    ImGui::TextUnformatted("输出格式");
+    auto drawFormatButton = [&](const char* label, int formatId, float width) {
+        if (state.outputFormat == formatId) {
+            PushPrimaryButtonStyle();
+        } else {
+            PushSecondaryButtonStyle();
+        }
+        const bool clicked = ImGui::Button(label, ImVec2(width, 0));
+        PopButtonStyle();
+        if (clicked) {
+            state.outputFormat = formatId;
+        }
+    };
+    const float formatSpacing = ImGui::GetStyle().ItemSpacing.x;
+    const float formatAvail = ImGui::GetContentRegionAvail().x;
+    const float topRowW = std::max(1.0f, (formatAvail - formatSpacing * 2.0f) / 3.0f);
+    const float bottomRowW = std::max(1.0f, (formatAvail - formatSpacing) / 2.0f);
+    drawFormatButton("BLP", 0, topRowW);
+    ImGui::SameLine();
+    drawFormatButton("PNG", 1, topRowW);
+    ImGui::SameLine();
+    drawFormatButton("JPG", 2, topRowW);
+    drawFormatButton("BMP", 3, bottomRowW);
+    ImGui::SameLine();
+    drawFormatButton("TGA", 4, bottomRowW);
+}
+
 } // namespace
 
 void renderLeftPanel(AppState& state) {
@@ -340,6 +371,13 @@ void renderLeftPanel(AppState& state) {
                 state.previewAdjustedRGBA.clear();
                 state.currentMeta = ImageMeta();
             }
+
+            ImGui::Separator();
+            drawOutputFormatSelector(state);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.357f, 0.392f, 0.447f, 1.0f));
+            ImGui::TextWrapped("用于预览图“保存尺寸/对齐”的保存格式，与批量转换共用此设置。");
+            ImGui::PopStyleColor();
+            ImGui::Separator();
 
             const std::string keyword = toLowerAscii(searchBuf);
             float listH = ImGui::GetContentRegionAvail().y - 28.0f * state.dpiScale;
@@ -418,31 +456,7 @@ void renderLeftPanel(AppState& state) {
                 }
             }
 
-            ImGui::TextUnformatted("输出格式");
-            auto drawFormatButton = [&](const char* label, int formatId, float width) {
-                if (state.outputFormat == formatId) {
-                    PushPrimaryButtonStyle();
-                } else {
-                    PushSecondaryButtonStyle();
-                }
-                const bool clicked = ImGui::Button(label, ImVec2(width, 0));
-                PopButtonStyle();
-                if (clicked) {
-                    state.outputFormat = formatId;
-                }
-            };
-            const float formatSpacing = ImGui::GetStyle().ItemSpacing.x;
-            const float formatAvail = ImGui::GetContentRegionAvail().x;
-            const float topRowW = std::max(1.0f, (formatAvail - formatSpacing * 2.0f) / 3.0f);
-            const float bottomRowW = std::max(1.0f, (formatAvail - formatSpacing) / 2.0f);
-            drawFormatButton("BLP", 0, topRowW);
-            ImGui::SameLine();
-            drawFormatButton("PNG", 1, topRowW);
-            ImGui::SameLine();
-            drawFormatButton("JPG", 2, topRowW);
-            drawFormatButton("BMP", 3, bottomRowW);
-            ImGui::SameLine();
-            drawFormatButton("TGA", 4, bottomRowW);
+            drawOutputFormatSelector(state);
 
             if (state.outputFormat == 0) {
                 ImGui::SliderInt("BLP 质量", &state.quality, 0, 100);
