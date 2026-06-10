@@ -2,6 +2,7 @@
 #include "ui_main.h"
 #include "style.h"
 #include "utils.h"
+#include "image_ops.h"
 #include "win_integration.h"
 
 #include <algorithm>
@@ -406,11 +407,48 @@ void renderRightPanel(AppState& state) {
                           std::max(1, static_cast<int>(state.imageViewer.zoom * 100.0f + 0.5f)));
             ImGui::TextUnformatted(zoomText);
 
+            // Target-size mode -> concrete dimensions (shared with batch convert).
+            auto resolveTargetDims = [&](int* tw, int* th) {
+                switch (state.targetSizeMode) {
+                    case 1: *tw = 64;  *th = 64;  break;
+                    case 2: *tw = 128; *th = 128; break;
+                    default: *tw = std::max(1, state.resizeWidth);
+                             *th = std::max(1, state.resizeHeight); break;
+                }
+            };
+            auto saveWithMethod = [&](ResizeMethod method, const char* okMsg) {
+                const std::vector<uint8_t>* src = nullptr;
+                int sw = 0, sh = 0;
+                if (!getActiveSource(&src, &sw, &sh)) return;
+                int tw = 0, th = 0;
+                resolveTargetDims(&tw, &th);
+                RgbaImage r = transformToTarget(src->data(), sw, sh, tw, th, method);
+                if (r.width <= 0) { logMsg(state, "尺寸处理失败"); return; }
+                std::string err;
+                if (saveAlignedToSource(state, r.pixels, r.width, r.height, &err)) {
+                    char msg[128];
+                    std::snprintf(msg, sizeof(msg), "%s：%d x %d", okMsg, r.width, r.height);
+                    logMsg(state, msg);
+                } else {
+                    logMsg(state, std::string("保存失败：") + err);
+                }
+            };
+
+            // New save buttons at the front of the toolbar row (per layout sketch).
+            ImGui::SameLine();
+            PushPrimaryButtonStyle();
+            if (ImGui::Button("拉伸尺寸保存")) saveWithMethod(ResizeMethod::Stretch, "已拉伸尺寸保存");
+            PopButtonStyle();
+            ImGui::SameLine();
+            PushPrimaryButtonStyle();
+            if (ImGui::Button("居中透明保存")) saveWithMethod(ResizeMethod::CenterTransparent, "已居中透明保存");
+            PopButtonStyle();
+
             const bool originalIsPot = isPowerOfTwo(state.previewOrigW) && isPowerOfTwo(state.previewOrigH);
             const bool canAlign = !originalIsPot && !state.previewAdjusted;
             ImGui::SameLine();
             if (!canAlign) ImGui::BeginDisabled();
-            if (ImGui::SmallButton("拉伸2次幂")) {
+            if (ImGui::Button("拉伸2次幂")) {
                 int targetW = nearestPowerOfTwo(state.previewOrigW);
                 int targetH = nearestPowerOfTwo(state.previewOrigH);
                 if (targetW != state.previewOrigW || targetH != state.previewOrigH) {
@@ -427,7 +465,7 @@ void renderRightPanel(AppState& state) {
                 }
             }
             ImGui::SameLine();
-            if (ImGui::SmallButton("居中2次幂")) {
+            if (ImGui::Button("居中2次幂")) {
                 int targetW = nextPowerOfTwo(state.previewOrigW);
                 int targetH = nextPowerOfTwo(state.previewOrigH);
                 if (targetW != state.previewOrigW || targetH != state.previewOrigH) {
@@ -448,6 +486,21 @@ void renderRightPanel(AppState& state) {
                 }
             }
             if (!canAlign) ImGui::EndDisabled();
+
+            // Shared target-size selector (默认尺寸 / 64×64 / 128×128) starts the second toolbar row.
+            auto sizeModeBtn = [&](const char* label, int mode) {
+                if (state.targetSizeMode == mode) PushPrimaryButtonStyle();
+                else PushSecondaryButtonStyle();
+                bool clicked = ImGui::Button(label);
+                PopButtonStyle();
+                if (clicked) state.targetSizeMode = mode;
+            };
+            sizeModeBtn("默认尺寸", 0);
+            ImGui::SameLine();
+            sizeModeBtn("64×64", 1);
+            ImGui::SameLine();
+            sizeModeBtn("128×128", 2);
+            ImGui::SameLine();
 
             ImGui::SetNextItemWidth(78.0f * state.dpiScale);
             if (ImGui::InputInt("宽##ToolbarResizeWidth", &state.resizeWidth, 0, 0)) {

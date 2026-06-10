@@ -3,6 +3,7 @@
 #include "file_dialogs.h"
 #include "style.h"
 #include "utils.h"
+#include "image_ops.h"
 #include "win_integration.h"
 
 #include <algorithm>
@@ -222,6 +223,15 @@ void runConvertForPathsInternal(AppState& state, const std::vector<std::string>&
             state.lastConvertResults.push_back(std::move(item));
             state.convertProgress = static_cast<float>(i + 1) / total;
             continue;
+        }
+
+        // Shared target-size mode: a fixed preset (64/128) resizes every file the
+        // same way the preview's 居中透明保存 does. 默认尺寸 (0) leaves batch as-is.
+        if (state.targetSizeMode != 0) {
+            int t = (state.targetSizeMode == 1) ? 64 : 128;
+            RgbaImage resized = transformToTarget(image.pixels.data(), image.width, image.height,
+                                                  t, t, ResizeMethod::CenterTransparent);
+            if (resized.width > 0) image = std::move(resized);
         }
 
         std::string outPath = buildOutputPath(state, inputPath, format, state.overwrite);
@@ -499,6 +509,95 @@ void renderLeftPanel(AppState& state) {
 
             ImGui::EndTabItem();
         }
+
+        if (ImGui::BeginTabItem("图层合成")) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.357f, 0.392f, 0.447f, 1.0f));
+            ImGui::TextWrapped("对“资源列表”中的每张图执行图层叠加或加边框，批量输出。");
+            ImGui::PopStyleColor();
+
+            ImGui::RadioButton("图层叠加", &state.composeOpMode, 0);
+            ImGui::SameLine();
+            ImGui::RadioButton("边框", &state.composeOpMode, 1);
+            ImGui::Separator();
+
+            if (state.composeOpMode == 0) {
+                if (ImGui::Button("选择叠加图...")) {
+                    auto files = openFileDialog(state.hwnd, L"*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp", false);
+                    if (!files.empty()) {
+                        state.overlayImagePath = wideToUtf8(files.front());
+                    }
+                }
+                ImGui::SameLine();
+                if (state.overlayImagePath.empty()) {
+                    ImGui::TextDisabled("未选择");
+                } else {
+                    std::string name = fsPathToUtf8(fsPathFromUtf8(state.overlayImagePath).filename());
+                    ImGui::TextUnformatted(name.c_str());
+                    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", state.overlayImagePath.c_str());
+                }
+
+                ImGui::TextUnformatted("锚点");
+                const char* anchorLabels[9] = {"左上", "上", "右上",
+                                               "左", "中", "右",
+                                               "左下", "下", "右下"};
+                const float anchorBtnW = std::max(1.0f,
+                    (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2.0f) / 3.0f);
+                for (int a = 0; a < 9; ++a) {
+                    if (state.overlayAnchor == a) PushPrimaryButtonStyle();
+                    else PushSecondaryButtonStyle();
+                    char id[32];
+                    std::snprintf(id, sizeof(id), "%s##anchor%d", anchorLabels[a], a);
+                    if (ImGui::Button(id, ImVec2(anchorBtnW, 0))) state.overlayAnchor = a;
+                    PopButtonStyle();
+                    if (a % 3 != 2) ImGui::SameLine();
+                }
+
+                ImGui::SliderInt("边距(px)", &state.overlayMarginPx, 0, 256);
+                ImGui::SliderInt("缩放(%)", &state.overlayScalePct, 1, 400);
+                ImGui::SliderFloat("不透明度", &state.overlayOpacity, 0.0f, 1.0f, "%.2f");
+            } else {
+                ImGui::SliderInt("边框厚度(px)", &state.borderThicknessPx, 0, 256);
+                ImGui::ColorEdit4("边框颜色", state.borderColor);
+                ImGui::Checkbox("扩展画布(否则内描边)", &state.borderExpandCanvas);
+            }
+
+            ImGui::Separator();
+            ImGui::TextUnformatted("输出设置");
+            ImGui::PushItemWidth(-84);
+            ImGui::InputText("##ComposeOutputDir", state.outputDirBuf, sizeof(state.outputDirBuf));
+            ImGui::PopItemWidth();
+            ImGui::SameLine();
+            if (ImGui::Button("浏览##ComposeOutputBrowse")) {
+                auto folder = openFolderDialog(state.hwnd);
+                if (!folder.empty()) {
+                    std::strncpy(state.outputDirBuf, wideToUtf8(folder).c_str(), sizeof(state.outputDirBuf) - 1);
+                }
+            }
+            drawOutputFormatSelector(state);
+            if (state.outputFormat == 0) {
+                ImGui::SliderInt("BLP 质量##compose", &state.quality, 0, 100);
+            }
+            ImGui::Checkbox("覆盖已存在文件##compose", &state.overwrite);
+
+            ImGui::Spacing();
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 8));
+            if (state.converting.load()) {
+                ImGui::BeginDisabled();
+                ImGui::Button("处理中...", ImVec2(-1, 0));
+                ImGui::EndDisabled();
+            } else {
+                PushPrimaryButtonStyle();
+                if (ImGui::Button("开始处理", ImVec2(-1, 0))) {
+                    runComposeBatchFromUi(state);
+                }
+                PopButtonStyle();
+            }
+            ImGui::PopStyleVar();
+            ImGui::ProgressBar(state.convertProgress.load(), ImVec2(-1, 0));
+
+            ImGui::EndTabItem();
+        }
+
         ImGui::EndTabBar();
     }
 
@@ -507,6 +606,111 @@ void renderLeftPanel(AppState& state) {
 
 void runConvertAllFromUi(AppState& state) {
     doConvertAll(state);
+}
+
+void runComposeBatchFromUi(AppState& state) {
+    if (state.converting.load()) {
+        logMessage(state, "已有任务正在执行");
+        return;
+    }
+    const std::vector<std::string>& inputPaths = state.fileList;
+    if (inputPaths.empty()) {
+        logMessage(state, "资源列表为空，无可处理文件");
+        return;
+    }
+    if (!ensureOutputDir(state, inputPaths)) return;
+
+    // Overlay mode: load the overlay image once up front.
+    RgbaImage overlayImg;
+    if (state.composeOpMode == 0) {
+        if (state.overlayImagePath.empty()) {
+            logMessage(state, "请先选择叠加图");
+            return;
+        }
+        ImageMeta om;
+        std::string oerr;
+        if (!loadImageFile(state.overlayImagePath, &overlayImg, &om, &oerr, &state.blpApi)) {
+            logMessage(state, std::string("叠加图读取失败：") + oerr);
+            return;
+        }
+    }
+
+    const std::string format = normalizedFormatStr(state.outputFormat);
+    const bool formatIsBlp = (format == "blp");
+    const int total = static_cast<int>(inputPaths.size());
+    int successCount = 0;
+    int failedCount = 0;
+
+    state.lastConvertResults.clear();
+    state.lastConvertResults.reserve(inputPaths.size());
+    state.lastConvertTotal = total;
+    state.lastConvertSuccess = 0;
+    state.lastConvertFailed = 0;
+    state.taskDrawerVisible = true;
+    state.converting = true;
+    state.convertProgress = 0.0f;
+
+    for (int i = 0; i < total; ++i) {
+        const std::string& inputPath = inputPaths[i];
+        ConvertItemResult item;
+        item.inputPath = inputPath;
+
+        RgbaImage image;
+        ImageMeta meta;
+        std::string error;
+        if (!loadImageFile(inputPath, &image, &meta, &error, &state.blpApi)) {
+            item.success = false;
+            item.error = error;
+            char msg[512];
+            std::snprintf(msg, sizeof(msg), "读取失败：%s（%s）", inputPath.c_str(), error.c_str());
+            logMessage(state, msg);
+            ++failedCount;
+            state.lastConvertResults.push_back(std::move(item));
+            state.convertProgress = static_cast<float>(i + 1) / total;
+            continue;
+        }
+
+        RgbaImage out;
+        if (state.composeOpMode == 0) {
+            out = compositeOverlay(image, overlayImg, static_cast<Anchor9>(state.overlayAnchor),
+                                   state.overlayMarginPx, state.overlayScalePct, state.overlayOpacity);
+        } else {
+            auto to8 = [](float v) { return static_cast<uint8_t>(std::clamp(v * 255.0f + 0.5f, 0.0f, 255.0f)); };
+            out = addBorder(image, state.borderThicknessPx,
+                            to8(state.borderColor[0]), to8(state.borderColor[1]),
+                            to8(state.borderColor[2]), to8(state.borderColor[3]),
+                            state.borderExpandCanvas);
+        }
+        if (out.width <= 0) out = image;  // safety fallback
+
+        std::string outPath = buildOutputPath(state, inputPath, format, state.overwrite);
+        item.outputPath = outPath;
+        const int mipCount = formatIsBlp ? autoMipCount(out.width, out.height) : 1;
+        if (!writeImageFile(outPath, format, out, state.quality, mipCount, &error, &state.blpApi)) {
+            item.success = false;
+            item.error = error;
+            char msg[512];
+            std::snprintf(msg, sizeof(msg), "写入失败：%s（%s）", outPath.c_str(), error.c_str());
+            logMessage(state, msg);
+            ++failedCount;
+            state.lastConvertResults.push_back(std::move(item));
+            state.convertProgress = static_cast<float>(i + 1) / total;
+            continue;
+        }
+
+        item.success = true;
+        ++successCount;
+        state.lastConvertResults.push_back(std::move(item));
+        state.convertProgress = static_cast<float>(i + 1) / total;
+    }
+
+    state.lastConvertSuccess = successCount;
+    state.lastConvertFailed = failedCount;
+    char msg[160];
+    std::snprintf(msg, sizeof(msg), "已处理 %d / %d 个文件（失败 %d）",
+                  successCount, total, failedCount);
+    logMessage(state, msg);
+    state.converting = false;
 }
 
 void runConvertForPaths(AppState& state, const std::vector<std::string>& inputPaths) {

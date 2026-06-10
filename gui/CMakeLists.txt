@@ -23,6 +23,7 @@ set(BLP_VIEWER_SOURCES
     src/style.cpp
     src/utils.cpp
     src/image_io.cpp
+    src/image_ops.cpp
     src/blp_api.cpp
     src/image_texture.cpp
     src/image_view.cpp

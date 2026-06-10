@@ -101,6 +101,21 @@ struct AppState {
     bool resizeAspectSyncing = false;
     float previewCanvasBg[3] = {0.878f, 0.894f, 0.922f};
 
+    // Shared target-size mode for preview save buttons + batch resize.
+    // 0 = 默认尺寸 (use resizeWidth/resizeHeight), 1 = 64x64, 2 = 128x128
+    int targetSizeMode = 0;
+
+    // Layer compositing / border batch settings
+    std::string overlayImagePath;          // overlay image (utf8)
+    int overlayAnchor = 4;                 // Anchor9 index, 4 = Center
+    int overlayMarginPx = 0;
+    int overlayScalePct = 100;
+    float overlayOpacity = 1.0f;
+    int borderThicknessPx = 4;
+    float borderColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};  // RGBA, alpha editable
+    bool borderExpandCanvas = false;       // false = draw inside, true = expand canvas
+    int composeOpMode = 0;                 // 0 = 图层合成, 1 = 边框
+
     // BLP API
     BlpApi blpApi;
 
