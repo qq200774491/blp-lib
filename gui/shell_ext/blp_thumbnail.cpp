@@ -15,7 +15,7 @@
 #include <new>
 #include <vector>
 
-#include "blp_lib.h"
+#include "blp/blp_codec.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_TGA
@@ -42,68 +42,6 @@ const wchar_t* kBlpProgId = L"BLPViewer.File";
 
 HINSTANCE g_hInstance = nullptr;
 long g_cDllRef = 0;
-
-typedef BlpResult (*blp_load_from_buffer_fn)(const uint8_t*, uint32_t, BlpImage*);
-typedef void (*blp_free_image_fn)(BlpImage*);
-
-HMODULE g_blpModule = nullptr;
-blp_load_from_buffer_fn g_blpLoad = nullptr;
-blp_free_image_fn g_blpFree = nullptr;
-
-bool ensureBlpLoaded() {
-#ifdef BLP_STATIC_LINK
-    if (!g_blpLoad || !g_blpFree) {
-        g_blpLoad = &blp_load_from_buffer;
-        g_blpFree = &blp_free_image;
-    }
-    return g_blpLoad && g_blpFree;
-#else
-    if (g_blpModule && g_blpLoad && g_blpFree) {
-        return true;
-    }
-
-    wchar_t envPath[MAX_PATH] = {};
-    DWORD envLen = GetEnvironmentVariableW(L"BLP_LIB_PATH", envPath, MAX_PATH);
-    if (envLen > 0 && envLen < MAX_PATH) {
-        g_blpModule = LoadLibraryW(envPath);
-    }
-
-    if (!g_blpModule) {
-        wchar_t modulePath[MAX_PATH] = {};
-        if (GetModuleFileNameW(g_hInstance, modulePath, MAX_PATH) > 0) {
-            PathRemoveFileSpecW(modulePath);
-            const wchar_t* candidates[] = {L"blp_lib.dll", L"blp-windows.dll"};
-            for (const wchar_t* name : candidates) {
-                wchar_t fullPath[MAX_PATH] = {};
-                if (PathCombineW(fullPath, modulePath, name)) {
-                    g_blpModule = LoadLibraryW(fullPath);
-                    if (g_blpModule) {
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    if (!g_blpModule) {
-        g_blpModule = LoadLibraryW(L"blp_lib.dll");
-    }
-    if (!g_blpModule) {
-        g_blpModule = LoadLibraryW(L"blp-windows.dll");
-    }
-
-    if (!g_blpModule) {
-        return false;
-    }
-
-    g_blpLoad = reinterpret_cast<blp_load_from_buffer_fn>(
-        GetProcAddress(g_blpModule, "blp_load_from_buffer"));
-    g_blpFree = reinterpret_cast<blp_free_image_fn>(
-        GetProcAddress(g_blpModule, "blp_free_image"));
-
-    return g_blpLoad && g_blpFree;
-#endif
-}
 
 HRESULT readStream(IStream* stream, std::vector<uint8_t>& outBytes) {
     if (!stream) {
@@ -306,31 +244,20 @@ HBITMAP createThumbnailBitmapFromRgba(const uint8_t* rgba, int width, int height
     return hbmp;
 }
 
-HBITMAP createThumbnailBitmap(const BlpImage& image, UINT cx) {
-    return createThumbnailBitmapFromRgba(image.data,
-                                         static_cast<int>(image.width),
-                                         static_cast<int>(image.height),
-                                         cx);
-}
-
 bool tryDecodeBlp(const std::vector<uint8_t>& bytes, UINT cx, HBITMAP* outBmp) {
     if (!outBmp || !isBlpBytes(bytes)) {
         return false;
     }
-    if (!ensureBlpLoaded()) {
-        return false;
-    }
-    if (bytes.size() > std::numeric_limits<uint32_t>::max()) {
+
+    auto image = blpcodec::decode(bytes.data(), bytes.size(), nullptr);
+    if (!image) {
         return false;
     }
 
-    BlpImage image = {};
-    if (g_blpLoad(bytes.data(), static_cast<uint32_t>(bytes.size()), &image) != BLP_SUCCESS) {
-        return false;
-    }
-
-    HBITMAP hbmp = createThumbnailBitmap(image, cx);
-    g_blpFree(&image);
+    HBITMAP hbmp = createThumbnailBitmapFromRgba(image->rgba.data(),
+                                                 static_cast<int>(image->width),
+                                                 static_cast<int>(image->height),
+                                                 cx);
     if (!hbmp) {
         return false;
     }

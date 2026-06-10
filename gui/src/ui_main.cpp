@@ -161,13 +161,7 @@ void showAboutDialog(AppState& state) {
         ImGui::TextUnformatted("版本：1.4");
         ImGui::TextUnformatted("作者：小为");
         ImGui::TextUnformatted("用于 BLP / PNG / JPG / BMP / TGA 的查看与转换工具。");
-        ImGui::Text("BLP 库状态：%s", state.blpApi.isLoaded() ? "已加载" : "未加载");
-        if (state.blpApi.isLoaded()) {
-            const std::string ver = state.blpApi.version();
-            if (!ver.empty()) {
-                ImGui::Text("BLP 库版本：%s", ver.c_str());
-            }
-        }
+        ImGui::Text("BLP 编解码：%s（内置）", state.blpApi.version().c_str());
         ImGui::Spacing();
         if (ImGui::Button("关闭")) {
             ImGui::CloseCurrentPopup();
@@ -383,17 +377,7 @@ void renderStatusBar(AppState& state) {
         rightSegments.push_back({okText, true, UiColorSuccess()});
     }
 
-    std::string blpSegment;
-    if (state.blpApi.isLoaded()) {
-        std::string ver = state.blpApi.version();
-        char blpBuf[64];
-        std::snprintf(blpBuf, sizeof(blpBuf), "BLP：%s",
-                      ver.empty() ? "已加载" : ver.c_str());
-        blpSegment = blpBuf;
-    } else {
-        blpSegment = "BLP：未加载";
-    }
-    rightSegments.push_back({blpSegment});
+    rightSegments.push_back({"BLP：" + state.blpApi.version()});
 
     const float rowY = ImGui::GetCursorPosY();
     const float contentW = ImGui::GetContentRegionAvail().x;

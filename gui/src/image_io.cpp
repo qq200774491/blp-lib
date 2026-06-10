@@ -152,22 +152,18 @@ bool loadImageFile(const std::string& path,
                                std::memcmp(bytes.data(), "BLP2", 4) == 0);
 
     if (ext == "blp" || looksLikeBlp) {
-        if (!blpApi || !blpApi->ensureLoaded(outError)) {
-            if (outError && outError->empty()) *outError = "BLP 库未加载";
+        std::string decodeError;
+        auto decoded = blpcodec::decode(bytes.data(), bytes.size(), &decodeError);
+        if (!decoded) {
+            if (outError) {
+                *outError = "BLP 解码失败" + (decodeError.empty() ? "" : "：" + decodeError);
+            }
             return false;
         }
 
-        BlpImage blpImage = {};
-        const BlpResult result = blpApi->loadFromBuffer(bytes, &blpImage);
-        if (result != BLP_SUCCESS) {
-            if (outError) *outError = "BLP 解码失败";
-            return false;
-        }
-
-        outImage->width = static_cast<int>(blpImage.width);
-        outImage->height = static_cast<int>(blpImage.height);
-        outImage->pixels.assign(blpImage.data, blpImage.data + blpImage.data_len);
-        blpApi->freeImage(&blpImage);
+        outImage->width = static_cast<int>(decoded->width);
+        outImage->height = static_cast<int>(decoded->height);
+        outImage->pixels = std::move(decoded->rgba);
     } else {
         int width = 0, height = 0, comp = 0;
         stbi_uc* data = stbi_load_from_memory(bytes.data(),
@@ -212,23 +208,19 @@ bool writeImageFile(const std::string& outputPath,
         fs::create_directories(outParent);
     }
 
-    if (fmt == "blp") {
-        if (!blpApi || !blpApi->ensureLoaded(outError)) {
-            if (outError && outError->empty()) *outError = "BLP 库未加载";
-            return false;
-        }
-
-        std::vector<uint8_t> pngBytes;
-        if (!encodeToBytes(image, "png", 100, &pngBytes, outError)) {
-            return false;
-        }
-
-        const int clampedQuality = std::clamp(quality, 0, 100);
-        return blpApi->encodePngBytesToBlp(pngBytes, outputPath, clampedQuality, mipCount, outError);
-    }
-
     std::vector<uint8_t> encoded;
-    if (!encodeToBytes(image, fmt, quality, &encoded, outError)) {
+    if (fmt == "blp") {
+        if (image.width <= 0 || image.height <= 0 || image.pixels.empty()) {
+            if (outError) *outError = "无效的图像数据";
+            return false;
+        }
+        if (!blpcodec::encodeJpegBlp1(image.pixels.data(),
+                                      static_cast<uint32_t>(image.width),
+                                      static_cast<uint32_t>(image.height),
+                                      quality, mipCount, encoded, outError)) {
+            return false;
+        }
+    } else if (!encodeToBytes(image, fmt, quality, &encoded, outError)) {
         return false;
     }
 

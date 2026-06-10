@@ -2,55 +2,21 @@
 
 #include <string>
 #include <vector>
-#include <cstdint>
 
-#include <Windows.h>
+#include "blp/blp_codec.h"
 
-#include "blp_lib.h"
-
+// 内置 BLP 编解码门面。
+// 历史上这里是 blp_lib.dll（Rust）的动态加载封装；现在编解码直接编译进程序
+// （见 src/blp/blp_codec.h），此类仅保留状态/版本查询与解码入口，避免大改调用方。
 class BlpApi {
 public:
-    BlpApi();
-    ~BlpApi();
-
-    bool ensureLoaded(std::string* outError);
-    bool isLoaded() const;
-    std::string libraryPath() const;
+    bool ensureLoaded(std::string* outError) const { (void)outError; return true; }
+    bool isLoaded() const { return true; }
+    std::string libraryPath() const { return "built-in"; }
     std::string version() const;
 
-    BlpResult loadFromBuffer(const std::vector<uint8_t>& data, BlpImage* outImage);
-    void freeImage(BlpImage* image);
-
-    bool encodePngBytesToBlp(const std::vector<uint8_t>& pngBytes,
-                             const std::string& outputPath,
-                             int quality,
-                             int mipCount,
-                             std::string* outError);
-
-    bool decodeMipToPngFromBuffer(const std::vector<uint8_t>& blpBytes,
-                                  int mipIndex,
-                                  const std::string& outputPath,
-                                  std::string* outError);
-
-private:
-    using LoadFromBufferFn = BlpResult (*)(const uint8_t*, uint32_t, BlpImage*);
-    using FreeImageFn = void (*)(BlpImage*);
-    using GetVersionFn = const char* (*)();
-    using EncodeBytesToBlpFn = BlpResult (*)(const uint8_t*, uint32_t, const char*, uint8_t, uint32_t);
-    using DecodeMipToPngFromBufferFn = BlpResult (*)(const uint8_t*, uint32_t, uint32_t, const char*);
-
-    bool resolveSymbols(std::string* outError);
-    bool tryLoadLibrary(const std::wstring& path, std::string* outError);
-    std::vector<std::wstring> candidateLibraryPaths() const;
-
-    HMODULE module_ = nullptr;
-    bool loaded_ = false;
-    std::string loadedPath_;
-    DWORD lastError_ = 0;
-
-    LoadFromBufferFn loadFromBuffer_ = nullptr;
-    FreeImageFn freeImage_ = nullptr;
-    GetVersionFn getVersion_ = nullptr;
-    EncodeBytesToBlpFn encodeBytesToBlp_ = nullptr;
-    DecodeMipToPngFromBufferFn decodeMipToPngFromBuffer_ = nullptr;
+    // BLP 字节 → RGBA（带 mip 回退容错）
+    bool loadFromBuffer(const std::vector<uint8_t>& data,
+                        blpcodec::RawImage* outImage,
+                        std::string* outError = nullptr) const;
 };

@@ -331,12 +331,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
     // Initialize image viewer
     g_state.imageViewer.init(g_dx.device);
 
-    // Try loading BLP library
-    {
-        std::string error;
-        g_state.blpApi.ensureLoaded(&error);
-    }
-
     // Check association status
     g_state.blpAssociated = isBlpAssociated();
     g_state.pngAssociated = isPngAssociated();

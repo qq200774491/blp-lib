@@ -25,11 +25,6 @@ if (-not (Test-Path -LiteralPath $exePath)) {
 
 Copy-Item -LiteralPath $exePath -Destination $stageDir -Force
 
-$blpLib = Join-Path $buildDir "blp_lib.dll"
-if (Test-Path -LiteralPath $blpLib) {
-    Copy-Item -LiteralPath $blpLib -Destination $stageDir -Force
-}
-
 $thumbnailDll = Join-Path $buildDir "blp_thumbnail.dll"
 if (Test-Path -LiteralPath $thumbnailDll) {
     Copy-Item -LiteralPath $thumbnailDll -Destination $stageDir -Force

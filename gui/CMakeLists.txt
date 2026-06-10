@@ -5,6 +5,15 @@ project(blp_viewer LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# vendored turbojpeg-static.lib 仅有 x64 版本
+if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "blp_viewer requires a 64-bit toolchain (turbojpeg-static.lib is x64-only).")
+endif()
+
+# --- turbojpeg (vendored static lib, used by built-in BLP codec) ---
+set(TURBOJPEG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/turbojpeg)
+set(TURBOJPEG_LIB ${TURBOJPEG_DIR}/lib/turbojpeg-static.lib)
+
 # --- ImGui sources ---
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
 set(IMGUI_SOURCES
@@ -25,6 +34,7 @@ set(BLP_VIEWER_SOURCES
     src/image_io.cpp
     src/image_ops.cpp
     src/blp_api.cpp
+    src/blp/blp_codec.cpp
     src/image_texture.cpp
     src/image_view.cpp
     src/thumbnail_cache.cpp
@@ -42,13 +52,11 @@ add_executable(blp_viewer WIN32
     ${IMGUI_SOURCES}
 )
 
-option(BLP_STATIC_LINK "Link BLP library statically" OFF)
-
 target_include_directories(blp_viewer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${TURBOJPEG_DIR}/include
 )
 
 target_compile_definitions(blp_viewer PRIVATE
@@ -63,6 +71,7 @@ if (MSVC)
 endif()
 
 target_link_libraries(blp_viewer PRIVATE
+    ${TURBOJPEG_LIB}
     d3d11
     d3dcompiler
     dxgi
@@ -74,49 +83,50 @@ target_link_libraries(blp_viewer PRIVATE
     gdi32
 )
 
-if (BLP_STATIC_LINK)
-    target_compile_definitions(blp_viewer PRIVATE BLP_STATIC_LINK)
-
-    set(BLP_STATIC_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../target/release/blp_lib.lib")
-
-    if (EXISTS "${BLP_STATIC_LIB}")
-        target_link_libraries(blp_viewer PRIVATE "${BLP_STATIC_LIB}")
-        target_link_libraries(blp_viewer PRIVATE ws2_32 ntdll)
-    else()
-        message(FATAL_ERROR "BLP static library not found: ${BLP_STATIC_LIB}. Build it with cargo build --release.")
-    endif()
-endif()
-
-# --- blp_thumbnail shell extension (unchanged) ---
+# --- blp_thumbnail shell extension ---
 add_library(blp_thumbnail SHARED
     shell_ext/blp_thumbnail.cpp
     shell_ext/blp_thumbnail.def
+    src/blp/blp_codec.cpp
 )
 
 target_include_directories(blp_thumbnail PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
+    ${TURBOJPEG_DIR}/include
 )
 
+if (MSVC)
+    target_compile_options(blp_thumbnail PRIVATE /utf-8)
+endif()
+
 target_link_libraries(blp_thumbnail PRIVATE
+    ${TURBOJPEG_LIB}
     ole32
     shell32
     shlwapi
     gdi32
 )
 
-if (BLP_STATIC_LINK)
-    target_compile_definitions(blp_thumbnail PRIVATE BLP_STATIC_LINK)
-
-    if (EXISTS "${BLP_STATIC_LIB}")
-        target_link_libraries(blp_thumbnail PRIVATE "${BLP_STATIC_LIB}")
-        target_link_libraries(blp_thumbnail PRIVATE ws2_32 ntdll)
-    else()
-        message(FATAL_ERROR "BLP static library not found: ${BLP_STATIC_LIB}. Build it with cargo build --release.")
-    endif()
-endif()
-
 set_target_properties(blp_thumbnail PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/$<CONFIG>
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/$<CONFIG>
 )
+
+# --- blp_codec self test (console) ---
+option(BLP_BUILD_TESTS "Build blp_codec self test" ON)
+if (BLP_BUILD_TESTS)
+    add_executable(blp_codec_selftest
+        tests/blp_codec_selftest.cpp
+        src/blp/blp_codec.cpp
+    )
+    target_include_directories(blp_codec_selftest PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
+        ${TURBOJPEG_DIR}/include
+    )
+    if (MSVC)
+        target_compile_options(blp_codec_selftest PRIVATE /utf-8)
+    endif()
+    target_link_libraries(blp_codec_selftest PRIVATE ${TURBOJPEG_LIB})
+endif()

@@ -11,7 +11,7 @@
 #include <filesystem>
 #include <fstream>
 
-#define STB_IMAGE_RESIZE2_IMPLEMENTATION
+// stb_image_resize2 的实现由 src/blp/blp_codec.cpp 提供（两个目标都编译它）
 #include "stb_image_resize2.h"
 
 namespace {
@@ -112,24 +112,16 @@ void updatePreview(AppState& state, const std::string& path) {
         state.currentIsBlp = true;
         state.currentBlpBytes = bytes;
 
-        if (!state.blpApi.ensureLoaded(&error)) {
-            logMsg(state, "BLP 未加载：" + error);
-            state.imageViewer.clearImage();
-            return;
-        }
-
-        BlpImage blpImage = {};
-        BlpResult result = state.blpApi.loadFromBuffer(bytes, &blpImage);
-        if (result != BLP_SUCCESS) {
-            logMsg(state, "BLP 解码失败：" + path);
+        blpcodec::RawImage blpImage;
+        if (!state.blpApi.loadFromBuffer(bytes, &blpImage, &error)) {
+            logMsg(state, "BLP 解码失败：" + path + (error.empty() ? "" : "（" + error + "）"));
             state.imageViewer.clearImage();
             return;
         }
 
         image.width = static_cast<int>(blpImage.width);
         image.height = static_cast<int>(blpImage.height);
-        image.pixels.assign(blpImage.data, blpImage.data + blpImage.data_len);
-        state.blpApi.freeImage(&blpImage);
+        image.pixels = std::move(blpImage.rgba);
 
         meta.width = image.width;
         meta.height = image.height;
