@@ -35,15 +35,22 @@ if (Test-Path -LiteralPath $thumbnailDll) {
     Copy-Item -LiteralPath $thumbnailDll -Destination $stageDir -Force
 }
 
-$issCmd = Get-Command "iscc" -ErrorAction SilentlyContinue
-if (-not $issCmd) {
-    Write-Warning "Inno Setup (iscc) not found in PATH. Install it to build the installer."
+$isccPath = (Get-Command "iscc" -ErrorAction SilentlyContinue).Source
+if (-not $isccPath) {
+    $isccPath = @(
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+        "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe",
+        "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+}
+if (-not $isccPath) {
+    Write-Warning "Inno Setup (iscc) not found. Install it to build the installer."
     Write-Host "Stage prepared at: $stageDir"
     exit 0
 }
 
 Write-Host "Building installer..."
-& $issCmd.Source $issPath
+& $isccPath $issPath
 if ($LASTEXITCODE -ne 0) {
     throw "Installer build failed"
 }
