@@ -6,8 +6,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
-$buildDir = Join-Path $repoRoot "gui\build\$Config"
+$guiRoot = Resolve-Path (Join-Path $scriptRoot "..")
+$buildDir = Join-Path $guiRoot "build\$Config"
 $stageDir = Join-Path $scriptRoot "stage"
 $issPath = Join-Path $scriptRoot "blp_viewer.iss"
 
