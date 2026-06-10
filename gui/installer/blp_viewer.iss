@@ -1,4 +1,4 @@
-#define AppName "BLP 查看器"
+#define AppName "图像快速处理工具"
 #define AppVersion "1.4.0"
 #define AppPublisher "blp-lib"
 #define AppExeName "blp_viewer.exe"

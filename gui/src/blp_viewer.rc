@@ -23,11 +23,11 @@ BEGIN
     BEGIN
       VALUE "CompanyName", "花吃了阿九"
       VALUE "Comments", "作者: 花吃了阿九"
-      VALUE "FileDescription", "BLP 查看器"
+      VALUE "FileDescription", "图像快速处理工具"
       VALUE "FileVersion", "1.4.0"
       VALUE "InternalName", "blp_viewer"
       VALUE "OriginalFilename", "blp_viewer.exe"
-      VALUE "ProductName", "BLP 查看器"
+      VALUE "ProductName", "图像快速处理工具"
       VALUE "ProductVersion", "1.4.0"
       VALUE "LegalCopyright", "Copyright (c) 花吃了阿九"
     END

@@ -144,12 +144,12 @@ void addPaths(AppState& state, const std::vector<std::string>& paths) {
 
 void showAboutDialog(AppState& state) {
     if (state.showAboutPopup) {
-        ImGui::OpenPopup("关于 blp查看器");
+        ImGui::OpenPopup("关于 图像快速处理工具");
         state.showAboutPopup = false;
     }
 
-    if (ImGui::BeginPopupModal("关于 blp查看器", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::TextUnformatted("blp查看器 1.4v - 小为");
+    if (ImGui::BeginPopupModal("关于 图像快速处理工具", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted("图像快速处理工具 1.4v - 小为");
         ImGui::Separator();
         ImGui::TextUnformatted("版本：1.4");
         ImGui::TextUnformatted("作者：小为");
