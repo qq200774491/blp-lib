@@ -12,6 +12,7 @@
 #include "image_io.h"
 #include "image_view.h"
 #include "settings.h"
+#include "thumbnail_cache.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -65,8 +66,6 @@ struct AppState {
     int lastConvertTotal = 0;
     int lastConvertSuccess = 0;
     int lastConvertFailed = 0;
-    bool taskDrawerVisible = false;
-    float taskDrawerHeight = 170.0f;
     bool showAboutPopup = false;
 
     // Preview state
@@ -101,9 +100,23 @@ struct AppState {
     bool resizeAspectSyncing = false;
     float previewCanvasBg[3] = {0.878f, 0.894f, 0.922f};
 
-    // Shared target-size mode for preview save buttons + batch resize.
+    // Preview-toolbar target-size mode (preview save buttons only).
     // 0 = 默认尺寸 (use resizeWidth/resizeHeight), 1 = 64x64, 2 = 128x128
     int targetSizeMode = 0;
+
+    // Batch output size (shared by 批量转换 + 图层合成). Kept separate from the
+    // preview resize controls because updatePreview overwrites those per file.
+    int batchSizeMode = 0;      // 0=原始大小 1=64×64 2=128×128 3=自定义
+    int batchWidth = 256;
+    int batchHeight = 256;
+    bool batchLockAspect = true;
+    float batchAspect = 1.0f;   // W/H captured when 锁比例 turns on (not persisted)
+    int batchResizeMethod = 1;  // 0=拉伸(Stretch) 1=居中透明(CenterTransparent)
+
+    // Right panel view mode + thumbnail grid cache. Auto-switched: single-file
+    // open/click -> 预览, multi-file/folder add -> 网格.
+    int rightViewMode = 1;      // 0=网格 1=预览
+    ThumbnailCache thumbCache;
 
     // Layer compositing / border batch settings
     std::string overlayImagePath;          // overlay image (utf8)
@@ -134,5 +147,4 @@ struct AppState {
 
 void renderMainUI(AppState& state);
 void renderMenuBar(AppState& state);
-void renderTaskDrawer(AppState& state);
 void renderStatusBar(AppState& state);

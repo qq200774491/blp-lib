@@ -15,6 +15,7 @@
 #include "win_integration.h"
 #include "utils.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -147,6 +148,7 @@ static void handleDropFiles(HDROP hDrop) {
     if (paths.empty()) return;
 
     // Add files to the state
+    const int beforeCount = static_cast<int>(g_state.fileList.size());
     for (const auto& path : paths) {
         namespace fs = std::filesystem;
         try {
@@ -165,10 +167,13 @@ static void handleDropFiles(HDROP hDrop) {
         } catch (...) {}
     }
 
-    if (!g_state.fileList.empty() && g_state.selectedFileIndex < 0) {
-        g_state.selectedFileIndex = 0;
-    } else if (!g_state.fileList.empty()) {
+    const int added = static_cast<int>(g_state.fileList.size()) - beforeCount;
+    if (added > 0) {
         g_state.selectedFileIndex = static_cast<int>(g_state.fileList.size()) - 1;
+        // Single file dropped -> 预览; multiple -> 网格.
+        g_state.rightViewMode = (added > 1) ? 0 : 1;
+    } else if (!g_state.fileList.empty() && g_state.selectedFileIndex < 0) {
+        g_state.selectedFileIndex = 0;
     }
 }
 
@@ -221,6 +226,11 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         g_state.settings.quality = g_state.quality;
         g_state.settings.overwrite = g_state.overwrite;
         g_state.settings.recursive = g_state.recursive;
+        g_state.settings.batchSizeMode = g_state.batchSizeMode;
+        g_state.settings.batchWidth = g_state.batchWidth;
+        g_state.settings.batchHeight = g_state.batchHeight;
+        g_state.settings.batchLockAspect = g_state.batchLockAspect;
+        g_state.settings.batchResizeMethod = g_state.batchResizeMethod;
         g_state.settings.lastInputDir = g_state.inputDirBuf;
         g_state.settings.lastOutputDir = g_state.outputDirBuf;
         g_state.settings.save();
@@ -304,6 +314,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
     g_state.quality = g_state.settings.quality;
     g_state.overwrite = g_state.settings.overwrite;
     g_state.recursive = g_state.settings.recursive;
+    g_state.batchSizeMode = g_state.settings.batchSizeMode;
+    g_state.batchWidth = g_state.settings.batchWidth;
+    g_state.batchHeight = g_state.settings.batchHeight;
+    g_state.batchLockAspect = g_state.settings.batchLockAspect;
+    g_state.batchResizeMethod = g_state.settings.batchResizeMethod;
+    g_state.batchAspect = static_cast<float>(std::max(1, g_state.batchWidth)) /
+                          static_cast<float>(std::max(1, g_state.batchHeight));
     if (!g_state.settings.lastInputDir.empty()) {
         std::strncpy(g_state.inputDirBuf, g_state.settings.lastInputDir.c_str(), sizeof(g_state.inputDirBuf) - 1);
     }
@@ -351,6 +368,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
         }
         if (!g_state.fileList.empty()) {
             g_state.selectedFileIndex = 0;
+            // Opened with a single file (e.g. file association) -> 预览; more -> 网格.
+            g_state.rightViewMode = (g_state.fileList.size() > 1) ? 0 : 1;
         }
     }
 
@@ -385,6 +404,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
     }
 
     // Cleanup
+    g_state.thumbCache.clear();
     g_state.imageViewer.release();
 
     ImGui_ImplDX11_Shutdown();

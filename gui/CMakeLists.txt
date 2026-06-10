@@ -27,6 +27,7 @@ set(BLP_VIEWER_SOURCES
     src/blp_api.cpp
     src/image_texture.cpp
     src/image_view.cpp
+    src/thumbnail_cache.cpp
     src/file_dialogs.cpp
     src/settings.cpp
     src/win_integration.cpp

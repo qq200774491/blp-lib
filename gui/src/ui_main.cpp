@@ -32,6 +32,7 @@ void removeSelectedFile(AppState& state) {
 
     const std::string path = state.fileList[state.selectedFileIndex];
     const bool removedCurrentPreview = (path == state.currentPreviewPath);
+    state.thumbCache.invalidate(path);
     state.fileSet.erase(path);
     state.relativePathMap.erase(path);
     state.fileList.erase(state.fileList.begin() + state.selectedFileIndex);
@@ -56,6 +57,7 @@ void removeSelectedFile(AppState& state) {
 }
 
 void clearFileList(AppState& state) {
+    state.thumbCache.clear();
     state.fileList.clear();
     state.fileSet.clear();
     state.relativePathMap.clear();
@@ -121,6 +123,7 @@ void addFolder(AppState& state, const std::filesystem::path& folder, bool recurs
 void addPaths(AppState& state, const std::vector<std::string>& paths) {
     namespace fs = std::filesystem;
     const int beforeCount = static_cast<int>(state.fileList.size());
+    bool addedViaFolder = false;
 
     for (const auto& pathUtf8 : paths) {
         fs::path path = fsPathFromUtf8(pathUtf8);
@@ -128,6 +131,7 @@ void addPaths(AppState& state, const std::vector<std::string>& paths) {
         if (!fs::exists(path, ec) || ec) continue;
 
         if (fs::is_directory(path, ec) && !ec) {
+            addedViaFolder = true;
             addFolder(state, path, state.recursive);
             continue;
         }
@@ -135,8 +139,11 @@ void addPaths(AppState& state, const std::vector<std::string>& paths) {
         addSingleFile(state, path, nullptr);
     }
 
-    if (static_cast<int>(state.fileList.size()) > beforeCount) {
+    const int added = static_cast<int>(state.fileList.size()) - beforeCount;
+    if (added > 0) {
         state.selectedFileIndex = static_cast<int>(state.fileList.size()) - 1;
+        // Single file opened -> 预览; batch add (folder or multiple) -> 网格.
+        state.rightViewMode = (addedViaFolder || added > 1) ? 0 : 1;
     } else if (!state.fileList.empty() && state.selectedFileIndex < 0) {
         state.selectedFileIndex = 0;
     }
@@ -231,11 +238,8 @@ void renderMenuBar(AppState& state) {
     }
 
     if (ImGui::BeginMenu("视图")) {
-        ImGui::MenuItem("显示任务面板", nullptr, &state.taskDrawerVisible);
         if (ImGui::MenuItem("重置布局")) {
             state.leftPanelWidth = 320.0f;
-            state.taskDrawerHeight = 170.0f;
-            state.taskDrawerVisible = false;
         }
         ImGui::EndMenu();
     }
@@ -323,143 +327,6 @@ void renderMenuBar(AppState& state) {
 
     ImGui::EndMenuBar();
     showAboutDialog(state);
-}
-
-void renderTaskDrawer(AppState& state) {
-    if (!state.taskDrawerVisible) return;
-
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.961f, 0.965f, 0.973f, 1.0f));
-    ImGui::BeginChild("TaskDrawer", ImVec2(0, state.taskDrawerHeight), ImGuiChildFlags_Borders);
-
-    int failedCount = 0;
-    for (const auto& item : state.lastConvertResults) {
-        if (!item.success) ++failedCount;
-    }
-
-    if (ImGui::BeginTabBar("TaskTabs")) {
-        if (ImGui::BeginTabItem("任务进度")) {
-            const float progress = std::clamp(state.convertProgress.load(), 0.0f, 1.0f);
-            ImGui::TextUnformatted(state.converting.load() ? "当前状态：转换中" : "当前状态：空闲");
-            ImGui::ProgressBar(progress, ImVec2(-1, 0));
-
-            char summary[192];
-            std::snprintf(summary, sizeof(summary),
-                          "本次结果：总计 %d | 成功 %d | 失败 %d | 日志 %zu",
-                          state.lastConvertTotal, state.lastConvertSuccess, state.lastConvertFailed,
-                          state.logMessages.size());
-            ImGui::TextUnformatted(summary);
-            if (state.lastConvertFailed > 0) {
-                ImGui::PushStyleColor(ImGuiCol_Text, UiColorError());
-                ImGui::Text("失败项：%d", state.lastConvertFailed);
-                ImGui::PopStyleColor();
-            } else if (state.lastConvertSuccess > 0) {
-                ImGui::PushStyleColor(ImGuiCol_Text, UiColorSuccess());
-                ImGui::Text("最近一次转换全部成功");
-                ImGui::PopStyleColor();
-            }
-
-            if (failedCount > 0 && !state.converting.load()) {
-                PushPrimaryButtonStyle();
-                if (ImGui::Button("重试失败项")) {
-                    std::vector<std::string> retryPaths;
-                    std::unordered_set<std::string> dedup;
-                    for (const auto& item : state.lastConvertResults) {
-                        if (item.success) continue;
-                        if (item.inputPath.empty()) continue;
-                        if (dedup.insert(item.inputPath).second) {
-                            retryPaths.push_back(item.inputPath);
-                        }
-                    }
-                    if (!retryPaths.empty()) {
-                        runConvertForPaths(state, retryPaths);
-                    }
-                }
-                PopButtonStyle();
-                ImGui::SameLine();
-            }
-
-            PushSecondaryButtonStyle();
-            if (ImGui::Button("清空结果")) {
-                state.lastConvertResults.clear();
-                state.lastConvertTotal = 0;
-                state.lastConvertSuccess = 0;
-                state.lastConvertFailed = 0;
-            }
-            PopButtonStyle();
-            ImGui::SameLine();
-            PushDangerButtonStyle();
-            if (ImGui::Button("清空日志")) {
-                state.logMessages.clear();
-            }
-            PopButtonStyle();
-
-            ImGui::BeginChild("TaskResultList", ImVec2(0, 0), ImGuiChildFlags_Borders);
-            if (state.lastConvertResults.empty()) {
-                ImGui::TextUnformatted("暂无任务结果");
-            } else {
-                for (const auto& item : state.lastConvertResults) {
-                    if (item.success) {
-                        ImGui::PushStyleColor(ImGuiCol_Text, UiColorSuccess());
-                        ImGui::Text("[成功] %s", item.inputPath.c_str());
-                        ImGui::PopStyleColor();
-                    } else {
-                        ImGui::PushStyleColor(ImGuiCol_Text, UiColorError());
-                        ImGui::Text("[失败] %s", item.inputPath.c_str());
-                        ImGui::PopStyleColor();
-                        if (!item.error.empty()) {
-                            ImGui::TextWrapped("     %s", item.error.c_str());
-                        }
-                    }
-                }
-            }
-            ImGui::EndChild();
-            ImGui::EndTabItem();
-        }
-
-        if (ImGui::BeginTabItem("日志")) {
-            if (state.logMessages.empty()) {
-                ImGui::TextUnformatted("暂无日志");
-            } else {
-                ImGui::BeginChild("TaskLogList", ImVec2(0, 0), ImGuiChildFlags_Borders);
-                const bool keepBottom = ImGui::GetScrollY() >= ImGui::GetScrollMaxY();
-                for (const auto& msg : state.logMessages) {
-                    ImGui::TextWrapped("%s", msg.c_str());
-                }
-                if (keepBottom) {
-                    ImGui::SetScrollHereY(1.0f);
-                }
-                ImGui::EndChild();
-            }
-            ImGui::EndTabItem();
-        }
-
-        if (ImGui::BeginTabItem("错误")) {
-            ImGui::BeginChild("ErrorList", ImVec2(0, 0), ImGuiChildFlags_Borders);
-            int shown = 0;
-            for (const auto& item : state.lastConvertResults) {
-                if (item.success) continue;
-                ++shown;
-                ImGui::PushStyleColor(ImGuiCol_Text, UiColorError());
-                ImGui::TextUnformatted(item.inputPath.c_str());
-                ImGui::PopStyleColor();
-                if (!item.outputPath.empty()) {
-                    ImGui::TextWrapped("输出：%s", item.outputPath.c_str());
-                }
-                ImGui::TextWrapped("原因：%s", item.error.empty() ? "未知错误" : item.error.c_str());
-                ImGui::Separator();
-            }
-            if (shown == 0) {
-                ImGui::TextUnformatted("未检测到失败项");
-            }
-            ImGui::EndChild();
-            ImGui::EndTabItem();
-        }
-
-        ImGui::EndTabBar();
-    }
-
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
 }
 
 void renderStatusBar(AppState& state) {
@@ -574,21 +441,8 @@ void renderMainUI(AppState& state) {
 
     const float statusBarH = 22.0f * state.dpiScale;
     const bool compactLayout = viewport->WorkSize.y <= 780.0f * state.dpiScale;
-    const float minDrawerH = compactLayout ? (96.0f * state.dpiScale) : (120.0f * state.dpiScale);
-    const float maxDrawerH = compactLayout ? (240.0f * state.dpiScale) : (420.0f * state.dpiScale);
-    if (state.taskDrawerVisible) {
-        state.taskDrawerHeight = std::clamp(state.taskDrawerHeight, minDrawerH, maxDrawerH);
-    }
-
-    const float drawerSplitterH = state.taskDrawerVisible ? (5.0f * state.dpiScale) : 0.0f;
-    float drawerH = state.taskDrawerVisible ? state.taskDrawerHeight : 0.0f;
     const float minWorkspaceH = compactLayout ? (220.0f * state.dpiScale) : (180.0f * state.dpiScale);
-    float contentH = ImGui::GetContentRegionAvail().y - statusBarH - drawerSplitterH - drawerH;
-    if (state.taskDrawerVisible && contentH < minWorkspaceH) {
-        drawerH = std::max(minDrawerH, drawerH - (minWorkspaceH - contentH));
-        state.taskDrawerHeight = drawerH;
-        contentH = ImGui::GetContentRegionAvail().y - statusBarH - drawerSplitterH - drawerH;
-    }
+    float contentH = ImGui::GetContentRegionAvail().y - statusBarH;
     contentH = std::max(contentH, minWorkspaceH);
 
     ImGui::BeginChild("WorkspaceRoot", ImVec2(0, contentH), ImGuiChildFlags_None);
@@ -623,24 +477,6 @@ void renderMainUI(AppState& state) {
     renderRightPanel(state);
     ImGui::EndChild();
     ImGui::EndChild();
-
-    if (state.taskDrawerVisible) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.843f, 0.859f, 0.890f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.176f, 0.424f, 0.875f, 0.5f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.176f, 0.424f, 0.875f, 0.8f));
-        ImGui::Button("##TaskDrawerSplitter", ImVec2(-1, drawerSplitterH));
-        if (ImGui::IsItemActive()) {
-            state.taskDrawerHeight = std::clamp(
-                state.taskDrawerHeight - ImGui::GetIO().MouseDelta.y,
-                minDrawerH, maxDrawerH);
-        }
-        if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
-        }
-        ImGui::PopStyleColor(3);
-
-        renderTaskDrawer(state);
-    }
 
     renderStatusBar(state);
 

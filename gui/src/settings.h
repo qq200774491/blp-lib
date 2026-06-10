@@ -14,6 +14,12 @@ struct AppSettings {
     bool overwrite = false;
     bool recursive = true;
 
+    int batchSizeMode = 0;      // 0=原始大小 1=64×64 2=128×128 3=自定义
+    int batchWidth = 256;
+    int batchHeight = 256;
+    bool batchLockAspect = true;
+    int batchResizeMethod = 1;  // 0=拉伸 1=居中透明
+
     std::string lastInputDir;
     std::string lastOutputDir;
 

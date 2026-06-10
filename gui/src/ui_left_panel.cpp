@@ -88,11 +88,17 @@ void addFolderFiles(AppState& state, const std::string& folder, bool recursive) 
         state.relativePathMap[k] = v;
     }
 
+    const int beforeCount = static_cast<int>(state.fileList.size());
     addFiles(state, paths);
+    // Folder add is a batch intent -> 网格, even for a single-image folder.
+    if (static_cast<int>(state.fileList.size()) > beforeCount) {
+        state.rightViewMode = 0;
+    }
 }
 
 void addFiles(AppState& state, const std::vector<std::string>& paths) {
     int startCount = static_cast<int>(state.fileList.size());
+    bool addedViaFolder = false;
 
     for (const auto& path : paths) {
         namespace fs = std::filesystem;
@@ -100,6 +106,7 @@ void addFiles(AppState& state, const std::vector<std::string>& paths) {
             fs::path fsPath = fsPathFromUtf8(path);
             if (!fs::exists(fsPath)) continue;
             if (fs::is_directory(fsPath)) {
+                addedViaFolder = true;
                 addFolderFiles(state, path, state.recursive);
                 continue;
             }
@@ -113,8 +120,11 @@ void addFiles(AppState& state, const std::vector<std::string>& paths) {
         } catch (...) {}
     }
 
-    if (static_cast<int>(state.fileList.size()) > startCount) {
+    const int added = static_cast<int>(state.fileList.size()) - startCount;
+    if (added > 0) {
         state.selectedFileIndex = static_cast<int>(state.fileList.size()) - 1;
+        // Single file opened -> 预览; batch add (folder or multiple) -> 网格.
+        state.rightViewMode = (addedViaFolder || added > 1) ? 0 : 1;
     } else if (!state.fileList.empty() && state.selectedFileIndex < 0) {
         state.selectedFileIndex = 0;
     }
@@ -177,6 +187,28 @@ bool ensureOutputDir(AppState& state, const std::vector<std::string>& inputPaths
     return false;
 }
 
+// Resolve the batch 输出尺寸 selection; returns false for 原始大小 (no resize).
+bool resolveBatchTarget(const AppState& state, int* tw, int* th) {
+    switch (state.batchSizeMode) {
+        case 1: *tw = 64;  *th = 64;  return true;
+        case 2: *tw = 128; *th = 128; return true;
+        case 3: *tw = std::clamp(state.batchWidth, 1, 16384);
+                *th = std::clamp(state.batchHeight, 1, 16384); return true;
+        default: return false;
+    }
+}
+
+void applyBatchOutputSize(const AppState& state, RgbaImage& image) {
+    int tw = 0, th = 0;
+    if (!resolveBatchTarget(state, &tw, &th)) return;
+    if (tw == image.width && th == image.height) return;
+    const ResizeMethod method = (state.batchResizeMethod == 0)
+        ? ResizeMethod::Stretch : ResizeMethod::CenterTransparent;
+    RgbaImage resized = transformToTarget(image.pixels.data(), image.width, image.height,
+                                          tw, th, method);
+    if (resized.width > 0) image = std::move(resized);
+}
+
 void runConvertForPathsInternal(AppState& state, const std::vector<std::string>& inputPaths) {
     if (state.converting.load()) {
         logMessage(state, "已有转换任务正在执行");
@@ -201,7 +233,6 @@ void runConvertForPathsInternal(AppState& state, const std::vector<std::string>&
     state.lastConvertSuccess = 0;
     state.lastConvertFailed = 0;
 
-    state.taskDrawerVisible = true;
     state.converting = true;
     state.convertProgress = 0.0f;
 
@@ -225,14 +256,7 @@ void runConvertForPathsInternal(AppState& state, const std::vector<std::string>&
             continue;
         }
 
-        // Shared target-size mode: a fixed preset (64/128) resizes every file the
-        // same way the preview's 居中透明保存 does. 默认尺寸 (0) leaves batch as-is.
-        if (state.targetSizeMode != 0) {
-            int t = (state.targetSizeMode == 1) ? 64 : 128;
-            RgbaImage resized = transformToTarget(image.pixels.data(), image.width, image.height,
-                                                  t, t, ResizeMethod::CenterTransparent);
-            if (resized.width > 0) image = std::move(resized);
-        }
+        applyBatchOutputSize(state, image);
 
         std::string outPath = buildOutputPath(state, inputPath, format, state.overwrite);
         item.outputPath = outPath;
@@ -250,6 +274,7 @@ void runConvertForPathsInternal(AppState& state, const std::vector<std::string>&
         }
 
         item.success = true;
+        if (state.fileSet.count(outPath)) state.thumbCache.invalidate(outPath);
         ++successCount;
         state.lastConvertResults.push_back(std::move(item));
         state.convertProgress = static_cast<float>(i + 1) / total;
@@ -306,6 +331,65 @@ void drawOutputFormatSelector(AppState& state) {
     drawFormatButton("TGA", 4, bottomRowW);
 }
 
+// Shared "输出尺寸" block for 批量转换 / 图层合成: target size + fit method.
+void drawOutputSizeSelector(AppState& state) {
+    ImGui::TextUnformatted("输出尺寸");
+    auto sizeModeButton = [&](const char* label, int mode, float width) {
+        if (state.batchSizeMode == mode) PushPrimaryButtonStyle();
+        else PushSecondaryButtonStyle();
+        const bool clicked = ImGui::Button(label, ImVec2(width, 0));
+        PopButtonStyle();
+        if (clicked) state.batchSizeMode = mode;
+    };
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    const float halfW = std::max(1.0f, (ImGui::GetContentRegionAvail().x - spacing) / 2.0f);
+    sizeModeButton("原始大小", 0, halfW);
+    ImGui::SameLine();
+    sizeModeButton("64×64", 1, halfW);
+    sizeModeButton("128×128", 2, halfW);
+    ImGui::SameLine();
+    sizeModeButton("自定义", 3, halfW);
+
+    if (state.batchSizeMode == 3) {
+        ImGui::SetNextItemWidth(78.0f * state.dpiScale);
+        if (ImGui::InputInt("宽##BatchW", &state.batchWidth, 0, 0)) {
+            state.batchWidth = std::clamp(state.batchWidth, 1, 16384);
+            if (state.batchLockAspect && state.batchAspect > 0.0f) {
+                state.batchHeight = std::clamp(
+                    static_cast<int>(state.batchWidth / state.batchAspect + 0.5f), 1, 16384);
+            }
+        }
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(78.0f * state.dpiScale);
+        if (ImGui::InputInt("高##BatchH", &state.batchHeight, 0, 0)) {
+            state.batchHeight = std::clamp(state.batchHeight, 1, 16384);
+            if (state.batchLockAspect && state.batchAspect > 0.0f) {
+                state.batchWidth = std::clamp(
+                    static_cast<int>(state.batchHeight * state.batchAspect + 0.5f), 1, 16384);
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Checkbox("锁比例##Batch", &state.batchLockAspect) && state.batchLockAspect) {
+            state.batchAspect = static_cast<float>(std::max(1, state.batchWidth)) /
+                                static_cast<float>(std::max(1, state.batchHeight));
+        }
+    }
+
+    if (state.batchSizeMode != 0) {
+        ImGui::TextUnformatted("处理方式");
+        auto methodButton = [&](const char* label, int method, float width) {
+            if (state.batchResizeMethod == method) PushPrimaryButtonStyle();
+            else PushSecondaryButtonStyle();
+            const bool clicked = ImGui::Button(label, ImVec2(width, 0));
+            PopButtonStyle();
+            if (clicked) state.batchResizeMethod = method;
+        };
+        methodButton("拉伸##BatchMethod", 0, halfW);
+        ImGui::SameLine();
+        methodButton("居中透明##BatchMethod", 1, halfW);
+    }
+}
+
 } // namespace
 
 void renderLeftPanel(AppState& state) {
@@ -347,6 +431,7 @@ void renderLeftPanel(AppState& state) {
                 if (state.selectedFileIndex >= 0 && state.selectedFileIndex < static_cast<int>(state.fileList.size())) {
                     std::string path = state.fileList[state.selectedFileIndex];
                     const bool removedCurrentPreview = (path == state.currentPreviewPath);
+                    state.thumbCache.invalidate(path);
                     state.fileSet.erase(path);
                     state.relativePathMap.erase(path);
                     state.fileList.erase(state.fileList.begin() + state.selectedFileIndex);
@@ -370,6 +455,7 @@ void renderLeftPanel(AppState& state) {
             }
             ImGui::SameLine();
             if (ImGui::Button("清空列表", ImVec2(-1, 0))) {
+                state.thumbCache.clear();
                 state.fileList.clear();
                 state.fileSet.clear();
                 state.relativePathMap.clear();
@@ -407,6 +493,7 @@ void renderLeftPanel(AppState& state) {
                 bool isSelected = (i == state.selectedFileIndex);
                 if (ImGui::Selectable(displayName.c_str(), isSelected)) {
                     state.selectedFileIndex = i;
+                    state.rightViewMode = 1;  // 点击列表项即打开单图预览
                 }
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("%s", state.fileList[i].c_str());
@@ -474,6 +561,10 @@ void renderLeftPanel(AppState& state) {
                 ImGui::TextDisabled("非 BLP 输出质量：%d（可在“编辑”菜单调整）", state.quality);
             }
 
+            ImGui::Separator();
+            drawOutputSizeSelector(state);
+            ImGui::Separator();
+
             ImGui::Checkbox("覆盖已存在文件", &state.overwrite);
 
             ImGui::Spacing();
@@ -485,27 +576,76 @@ void renderLeftPanel(AppState& state) {
             } else {
                 PushPrimaryButtonStyle();
                 if (ImGui::Button("开始转换", ImVec2(-1, 0))) {
-                    runConvertAllFromUi(state);
+                    ImGui::OpenPopup("确认开始转换");
                 }
                 PopButtonStyle();
             }
             ImGui::PopStyleVar();
 
-            ImGui::ProgressBar(state.convertProgress.load(), ImVec2(-1, 0));
+            if (ImGui::BeginPopupModal("确认开始转换", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+                const bool hasOutputDir = state.outputDirBuf[0] != '\0';
+                const bool hasFiles = !state.fileList.empty();
+                const bool hasInputDir = state.inputDirBuf[0] != '\0';
+                const char* formatNames[] = {"BLP", "PNG", "JPG", "BMP", "TGA"};
+                const char* formatName = formatNames[std::clamp(state.outputFormat, 0, 4)];
 
-            ImGui::Separator();
-            if (state.taskDrawerVisible) {
-                ImGui::TextUnformatted("任务面板：已展开");
-            } else {
-                ImGui::TextUnformatted("任务面板：已收起");
+                if (hasFiles) {
+                    ImGui::Text("将转换 %d 个文件，输出格式：%s",
+                                static_cast<int>(state.fileList.size()), formatName);
+                } else if (hasInputDir) {
+                    ImGui::Text("资源列表为空，将先扫描输入目录再转换，输出格式：%s", formatName);
+                } else {
+                    ImGui::PushStyleColor(ImGuiCol_Text, UiColorError());
+                    ImGui::TextUnformatted("没有可转换的文件，请先添加文件或设置输入目录。");
+                    ImGui::PopStyleColor();
+                }
+
+                char sizeDesc[96];
+                const char* methodName = (state.batchResizeMethod == 0) ? "拉伸" : "居中透明";
+                switch (state.batchSizeMode) {
+                    case 1: std::snprintf(sizeDesc, sizeof(sizeDesc), "输出尺寸：64×64（%s）", methodName); break;
+                    case 2: std::snprintf(sizeDesc, sizeof(sizeDesc), "输出尺寸：128×128（%s）", methodName); break;
+                    case 3: std::snprintf(sizeDesc, sizeof(sizeDesc), "输出尺寸：%d×%d（%s）",
+                                          state.batchWidth, state.batchHeight, methodName); break;
+                    default: std::snprintf(sizeDesc, sizeof(sizeDesc), "输出尺寸：原始大小"); break;
+                }
+                ImGui::TextUnformatted(sizeDesc);
+
+                if (hasOutputDir) {
+                    ImGui::Text("输出目录：");
+                    ImGui::SameLine();
+                    ImGui::TextWrapped("%s", state.outputDirBuf);
+                } else {
+                    ImGui::PushStyleColor(ImGuiCol_Text, UiColorWarning());
+                    ImGui::TextWrapped("尚未设置输出目录！转换结果将直接保存到各源文件所在目录。");
+                    ImGui::PopStyleColor();
+                    if (ImGui::Button("选择输出目录...")) {
+                        auto folder = openFolderDialog(state.hwnd);
+                        if (!folder.empty()) {
+                            std::strncpy(state.outputDirBuf, wideToUtf8(folder).c_str(),
+                                         sizeof(state.outputDirBuf) - 1);
+                        }
+                    }
+                }
+
+                ImGui::Separator();
+                const float btnW = 120.0f * state.dpiScale;
+                if (hasFiles || hasInputDir) {
+                    PushPrimaryButtonStyle();
+                    if (ImGui::Button("确认转换", ImVec2(btnW, 0))) {
+                        ImGui::CloseCurrentPopup();
+                        runConvertAllFromUi(state);
+                    }
+                    PopButtonStyle();
+                    ImGui::SameLine();
+                }
+                if (ImGui::Button("取消", ImVec2(btnW, 0))) {
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
             }
-            ImGui::SameLine();
-            if (ImGui::SmallButton(state.taskDrawerVisible ? "收起任务面板" : "展开任务面板")) {
-                state.taskDrawerVisible = !state.taskDrawerVisible;
-            }
-            char brief[96];
-            std::snprintf(brief, sizeof(brief), "日志条数：%zu", state.logMessages.size());
-            ImGui::TextUnformatted(brief);
+
+            ImGui::ProgressBar(state.convertProgress.load(), ImVec2(-1, 0));
 
             ImGui::EndTabItem();
         }
@@ -577,6 +717,7 @@ void renderLeftPanel(AppState& state) {
             if (state.outputFormat == 0) {
                 ImGui::SliderInt("BLP 质量##compose", &state.quality, 0, 100);
             }
+            drawOutputSizeSelector(state);
             ImGui::Checkbox("覆盖已存在文件##compose", &state.overwrite);
 
             ImGui::Spacing();
@@ -646,7 +787,6 @@ void runComposeBatchFromUi(AppState& state) {
     state.lastConvertTotal = total;
     state.lastConvertSuccess = 0;
     state.lastConvertFailed = 0;
-    state.taskDrawerVisible = true;
     state.converting = true;
     state.convertProgress = 0.0f;
 
@@ -683,6 +823,8 @@ void runComposeBatchFromUi(AppState& state) {
         }
         if (out.width <= 0) out = image;  // safety fallback
 
+        applyBatchOutputSize(state, out);
+
         std::string outPath = buildOutputPath(state, inputPath, format, state.overwrite);
         item.outputPath = outPath;
         const int mipCount = formatIsBlp ? autoMipCount(out.width, out.height) : 1;
@@ -699,6 +841,7 @@ void runComposeBatchFromUi(AppState& state) {
         }
 
         item.success = true;
+        if (state.fileSet.count(outPath)) state.thumbCache.invalidate(outPath);
         ++successCount;
         state.lastConvertResults.push_back(std::move(item));
         state.convertProgress = static_cast<float>(i + 1) / total;

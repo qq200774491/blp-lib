@@ -1,6 +1,7 @@
 #include "settings.h"
 #include "utils.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -52,6 +53,11 @@ void AppSettings::load() {
         else if (key == "quality") quality = std::atoi(value.c_str());
         else if (key == "overwrite") overwrite = (value == "1");
         else if (key == "recursive") recursive = (value == "1");
+        else if (key == "batchSizeMode") batchSizeMode = std::clamp(std::atoi(value.c_str()), 0, 3);
+        else if (key == "batchWidth") batchWidth = std::clamp(std::atoi(value.c_str()), 1, 16384);
+        else if (key == "batchHeight") batchHeight = std::clamp(std::atoi(value.c_str()), 1, 16384);
+        else if (key == "batchLockAspect") batchLockAspect = (value == "1");
+        else if (key == "batchResizeMethod") batchResizeMethod = std::clamp(std::atoi(value.c_str()), 0, 1);
         else if (key == "lastInputDir") lastInputDir = value;
         else if (key == "lastOutputDir") lastOutputDir = value;
     }
@@ -76,6 +82,12 @@ void AppSettings::save() const {
     file << "quality=" << quality << "\n";
     file << "overwrite=" << (overwrite ? "1" : "0") << "\n";
     file << "recursive=" << (recursive ? "1" : "0") << "\n";
+    file << "\n[batch]\n";
+    file << "batchSizeMode=" << batchSizeMode << "\n";
+    file << "batchWidth=" << batchWidth << "\n";
+    file << "batchHeight=" << batchHeight << "\n";
+    file << "batchLockAspect=" << (batchLockAspect ? "1" : "0") << "\n";
+    file << "batchResizeMethod=" << batchResizeMethod << "\n";
     file << "\n[paths]\n";
     file << "lastInputDir=" << lastInputDir << "\n";
     file << "lastOutputDir=" << lastOutputDir << "\n";
