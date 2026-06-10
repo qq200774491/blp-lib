@@ -17,6 +17,8 @@ Cargo.lock
 *.dylib
 *.dll
 *.lib
+# vendored 预编译静态库需要入库
+!gui/third_party/turbojpeg/lib/turbojpeg-static.lib
 *.exp
 *.exe
 *.ilk
