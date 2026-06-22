@@ -5,8 +5,8 @@
 IDI_APP_ICON ICON "blp_viewer.ico"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,4,0,0
- PRODUCTVERSION 1,4,0,0
+ FILEVERSION 1,5,0,0
+ PRODUCTVERSION 1,5,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -24,11 +24,11 @@ BEGIN
       VALUE "CompanyName", "花吃了阿九"
       VALUE "Comments", "作者: 花吃了阿九"
       VALUE "FileDescription", "图像快速处理工具"
-      VALUE "FileVersion", "1.4.0"
+      VALUE "FileVersion", "1.5.0"
       VALUE "InternalName", "blp_viewer"
       VALUE "OriginalFilename", "blp_viewer.exe"
       VALUE "ProductName", "图像快速处理工具"
-      VALUE "ProductVersion", "1.4.0"
+      VALUE "ProductVersion", "1.5.0"
       VALUE "LegalCopyright", "Copyright (c) 花吃了阿九"
     END
   END

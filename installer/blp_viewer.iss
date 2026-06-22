@@ -1,5 +1,5 @@
 #define AppName "图像快速处理工具"
-#define AppVersion "1.4.0"
+#define AppVersion "1.5.0"
 #define AppPublisher "blp-lib"
 #define AppExeName "blp_viewer.exe"
 #define StageDir "stage"

@@ -32,15 +32,15 @@ Dear ImGui + Direct3D 11 frontend with a built-in C++ BLP1 codec.
 - Visual Studio 2019+ (MSVC x64 toolchain)
 - CMake 3.16+
 
-All third-party dependencies are vendored under `gui/third_party/` (Dear ImGui, stb_image, libjpeg-turbo static lib). No additional installs required.
+All third-party dependencies are vendored under `third_party/` (Dear ImGui, stb_image, libjpeg-turbo static lib). No additional installs required.
 
 ## Build
 
 ```powershell
-.\gui\build.ps1 -Config Release
+.\build.ps1 -Config Release
 ```
 
-Outputs to `gui/build/Release/`:
+Outputs to `build/Release/`:
 
 | File | Description |
 |------|-------------|
@@ -51,7 +51,7 @@ Outputs to `gui/build/Release/`:
 ## Testing
 
 ```powershell
-.\gui\build\Release\blp_codec_selftest.exe test-data\blp test-data\png
+.\build\Release\blp_codec_selftest.exe test-data\blp test-data\png
 ```
 
 Runs decode regression (PSNR comparison against reference PNGs) and encode round-trip validation over the samples in `test-data/`.
@@ -61,10 +61,10 @@ Runs decode regression (PSNR comparison against reference PNGs) and encode round
 Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php).
 
 ```powershell
-.\gui\installer\build_installer.ps1 -Config Release
+.\installer\build_installer.ps1 -Config Release
 ```
 
-Output: `gui/installer/dist/BLP_Viewer_Setup_x64.exe`
+Output: `installer/dist/BLP_Viewer_Setup_x64.exe`
 
 ## License
 
@@ -104,15 +104,15 @@ Dear ImGui + Direct3D 11 前端，内置 C++ BLP1 编解码器。
 - Visual Studio 2019+（MSVC x64 工具链）
 - CMake 3.16+
 
-所有第三方依赖均已 vendored（`gui/third_party/`：Dear ImGui、stb_image、libjpeg-turbo 预编译静态库），无需额外安装。
+所有第三方依赖均已 vendored（`third_party/`：Dear ImGui、stb_image、libjpeg-turbo 预编译静态库），无需额外安装。
 
 ## 构建
 
 ```powershell
-.\gui\build.ps1 -Config Release
+.\build.ps1 -Config Release
 ```
 
-产物输出至 `gui/build/Release/`：
+产物输出至 `build/Release/`：
 
 | 文件 | 说明 |
 |------|------|
@@ -123,7 +123,7 @@ Dear ImGui + Direct3D 11 前端，内置 C++ BLP1 编解码器。
 ## 测试
 
 ```powershell
-.\gui\build\Release\blp_codec_selftest.exe test-data\blp test-data\png
+.\build\Release\blp_codec_selftest.exe test-data\blp test-data\png
 ```
 
 对 `test-data/` 下的样本执行解码回归（与参考 PNG 比较 PSNR）及编码往返验证。
@@ -133,10 +133,10 @@ Dear ImGui + Direct3D 11 前端，内置 C++ BLP1 编解码器。
 需要 [Inno Setup 6](https://jrsoftware.org/isinfo.php)。
 
 ```powershell
-.\gui\installer\build_installer.ps1 -Config Release
+.\installer\build_installer.ps1 -Config Release
 ```
 
-输出：`gui/installer/dist/BLP_Viewer_Setup_x64.exe`
+输出：`installer/dist/BLP_Viewer_Setup_x64.exe`
 
 ## 许可证
 
