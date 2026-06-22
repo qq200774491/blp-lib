@@ -158,9 +158,7 @@ std::optional<RawImage> decodePaletted(const uint8_t* data, size_t size,
     return image;
 }
 
-std::optional<RawImage> decodeJpeg(const uint8_t* data, size_t size,
-                                   const BlpHeader& header, uint32_t mipLevel,
-                                   std::string* outError) {
+std::optional<RawImage> decodeJpeg(const uint8_t* data, size_t size,  const BlpHeader& header, uint32_t mipLevel,  std::string* outError) {
     // JPEG-content BLP1：头部之后是 uint32 共享 JPEG 头大小 + 共享头字节，
     // 每个 mip 段是共享头 + 该 mip 的扫描数据拼出来的完整 JPEG。
     if (size < HEADER_SIZE + 4) {
