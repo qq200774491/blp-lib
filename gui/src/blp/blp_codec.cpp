@@ -94,9 +94,7 @@ const uint8_t* mipSegment(const uint8_t* data, size_t size, const BlpHeader& hea
     return data + offset;
 }
 
-std::optional<RawImage> decodePaletted(const uint8_t* data, size_t size,
-                                       const BlpHeader& header, uint32_t mipLevel,
-                                       std::string* outError) {
+std::optional<RawImage> decodePaletted(const uint8_t* data, size_t size, const BlpHeader& header, uint32_t mipLevel, std::string* outError) {
     constexpr size_t PALETTE_OFFSET = HEADER_SIZE;
     constexpr size_t PALETTE_SIZE = 256 * 4;
 
