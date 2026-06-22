@@ -1,13 +1,4 @@
 # ========================
-# Rust / Cargo
-# ========================
-/target/
-debug/
-Cargo.lock
-**/*.rs.bk
-**/mutants.out*/
-
-# ========================
 # C/C++ build artifacts
 # ========================
 *.o
@@ -18,7 +9,7 @@ Cargo.lock
 *.dll
 *.lib
 # vendored 预编译静态库需要入库
-!gui/third_party/turbojpeg/lib/turbojpeg-static.lib
+!third_party/turbojpeg/lib/turbojpeg-static.lib
 *.exp
 *.exe
 *.ilk
@@ -29,7 +20,6 @@ Cargo.lock
 # CMake
 # ========================
 /build/
-/gui/build/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
@@ -83,4 +73,3 @@ test-data/
 # ========================
 /bin/
 /dist/
-/examples/dist/
