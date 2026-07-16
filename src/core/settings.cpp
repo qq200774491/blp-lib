@@ -80,7 +80,10 @@ void AppSettings::load() {
         else if (key == "windowW")          parse_int(value, windowW);
         else if (key == "windowH")          parse_int(value, windowH);
         else if (key == "splitterPos")      parse_float(value, splitterPos);
-        else if (key == "outputFormat")     parse_int(value, outputFormat);
+        else if (key == "outputFormat") {
+            parse_int(value, outputFormat);
+            outputFormat = std::clamp(outputFormat, 0, OUTPUT_FORMAT_ORIGINAL);
+        }
         else if (key == "quality")          parse_int(value, quality);
         else if (key == "overwrite")        overwrite        = (value == "1");
         else if (key == "recursive")        recursive        = (value == "1");

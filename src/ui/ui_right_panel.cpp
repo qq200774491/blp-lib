@@ -114,8 +114,7 @@ void render_right_panel(AppState& state) {
         if (!getActiveSource(&source, &srcW, &srcH)) return;
 
         const bool sizeUnchanged  = (srcW == targetW && srcH == targetH);
-        const bool formatChanged  = (state.currentMeta.format !=
-                                     single_save_format_str(state.outputFormat));
+        const bool formatChanged  = (state.currentMeta.format != single_save_format_str(state));
         if (sizeUnchanged && !formatChanged) {
             log_msg(state, "尺寸与输出格式均未变化，无需保存");
             return;

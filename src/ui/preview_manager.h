@@ -7,11 +7,11 @@
 struct AppState;
 
 /**
- * @brief  Map the shared output-format index to a lowercase extension string.
- * @param  formatIndex  0=blp 1=png 2=jpg 3=bmp 4=tga.
- * @return Pointer to a static lowercase extension string, e.g. "blp".
+ * @brief  Resolve the shared output-format selection for the current preview.
+ * @param  state  Application state containing the selection and current image metadata.
+ * @return Canonical lowercase extension string, e.g. "blp".
  */
-const char* single_save_format_str(int formatIndex);
+std::string single_save_format_str(const AppState& state);
 
 /**
  * @brief  Load and decode a file, populate all preview-related AppState fields.

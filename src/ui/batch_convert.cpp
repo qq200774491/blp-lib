@@ -50,9 +50,10 @@ void run_convert_for_paths_internal(AppState& state, const std::vector<std::stri
     }
     if (!ensure_output_dir(state, inputPaths)) return;
 
-    const std::string format = normalized_format_str(state.outputFormat);
-    const bool formatIsBlp   = (format == "blp");
-    const int  total         = static_cast<int>(inputPaths.size());
+    const bool preserveOriginalFormat = (state.outputFormat == OUTPUT_FORMAT_ORIGINAL);
+    const std::string selectedFormat = preserveOriginalFormat
+        ? std::string() : normalized_format_str(state.outputFormat);
+    const int total = static_cast<int>(inputPaths.size());
     int successCount = 0;
     int failedCount  = 0;
 
@@ -86,6 +87,8 @@ void run_convert_for_paths_internal(AppState& state, const std::vector<std::stri
 
         apply_batch_output_size(state, image);
 
+        const std::string format = preserveOriginalFormat ? meta.format : selectedFormat;
+        const bool formatIsBlp   = (format == "blp");
         std::string outPath  = build_output_path(state, inputPath, format, state.overwrite);
         item.outputPath      = outPath;
         const int mipCount   = formatIsBlp ? auto_mip_count(image.width, image.height) : 1;
@@ -301,16 +304,17 @@ void draw_output_format_selector(AppState& state) {
     };
     const float formatSpacing = ImGui::GetStyle().ItemSpacing.x;
     const float formatAvail   = ImGui::GetContentRegionAvail().x;
-    const float topRowW       = std::max(1.0f, (formatAvail - formatSpacing * 2.0f) / 3.0f);
-    const float bottomRowW    = std::max(1.0f, (formatAvail - formatSpacing) / 2.0f);
-    draw_format_button("BLP", 0, topRowW);
+    const float formatButtonW = std::max(1.0f, (formatAvail - formatSpacing * 2.0f) / 3.0f);
+    draw_format_button("原始格式", OUTPUT_FORMAT_ORIGINAL, formatButtonW);
     ImGui::SameLine();
-    draw_format_button("PNG", 1, topRowW);
+    draw_format_button("BLP", 0, formatButtonW);
     ImGui::SameLine();
-    draw_format_button("JPG", 2, topRowW);
-    draw_format_button("BMP", 3, bottomRowW);
+    draw_format_button("PNG", 1, formatButtonW);
+    draw_format_button("JPG", 2, formatButtonW);
     ImGui::SameLine();
-    draw_format_button("TGA", 4, bottomRowW);
+    draw_format_button("BMP", 3, formatButtonW);
+    ImGui::SameLine();
+    draw_format_button("TGA", 4, formatButtonW);
 }
 
 void draw_output_size_selector(AppState& state) {
@@ -425,8 +429,10 @@ void render_batch_convert_tab(AppState& state) {
 
     draw_output_format_selector(state);
 
-    if (state.outputFormat == 0) {
-        ImGui::SliderInt("BLP 质量", &state.quality, 0, 100);
+    if (state.outputFormat == 0 || state.outputFormat == OUTPUT_FORMAT_ORIGINAL) {
+        const char* qualityLabel = (state.outputFormat == OUTPUT_FORMAT_ORIGINAL)
+            ? "BLP / JPG 质量" : "BLP 质量";
+        ImGui::SliderInt(qualityLabel, &state.quality, 0, 100);
     } else {
         ImGui::TextDisabled("非 BLP 输出质量：%d（可在“编辑”菜单调整）", state.quality);
     }
@@ -456,8 +462,9 @@ void render_batch_convert_tab(AppState& state) {
         const bool hasOutputDir = state.outputDirBuf[0] != '\0';
         const bool hasFiles     = !state.fileList.empty();
         const bool hasInputDir  = state.inputDirBuf[0] != '\0';
-        const char* formatNames[] = {"BLP", "PNG", "JPG", "BMP", "TGA"};
-        const char* formatName    = formatNames[std::clamp(state.outputFormat, 0, 4)];
+        const char* formatNames[] = {"BLP", "PNG", "JPG", "BMP", "TGA", "原始格式"};
+        const char* formatName = formatNames[
+            std::clamp(state.outputFormat, 0, OUTPUT_FORMAT_ORIGINAL)];
 
         if (hasFiles) {
             ImGui::Text("将转换 %d 个文件，输出格式：%s",

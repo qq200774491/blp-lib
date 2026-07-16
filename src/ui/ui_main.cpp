@@ -211,6 +211,8 @@ void render_menu_bar(AppState& state) {
         ImGui::Separator();
         if (state.outputFormat == 0) {
             ImGui::TextDisabled("当前输出格式为 BLP，质量可在左侧直接调整");
+        } else if (state.outputFormat == OUTPUT_FORMAT_ORIGINAL) {
+            ImGui::TextDisabled("当前按原始格式输出，BLP / JPG 质量可在左侧直接调整");
         } else {
             ImGui::TextUnformatted("非 BLP 输出质量");
             ImGui::SetNextItemWidth(160.0f * state.dpiScale);

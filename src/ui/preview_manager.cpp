@@ -40,9 +40,12 @@ std::vector<BlpMipEntry> read_blp_mip_entries(const std::vector<uint8_t>& bytes)
 
 } // namespace
 
-const char* single_save_format_str(int formatIndex) {
+std::string single_save_format_str(const AppState& state) {
+    if (state.outputFormat == OUTPUT_FORMAT_ORIGINAL && !state.currentMeta.format.empty()) {
+        return normalize_format(state.currentMeta.format);
+    }
     static const char* formats[] = {"blp", "png", "jpg", "bmp", "tga"};
-    if (formatIndex >= 0 && formatIndex < 5) return formats[formatIndex];
+    if (state.outputFormat >= 0 && state.outputFormat < 5) return formats[state.outputFormat];
     return "blp";
 }
 
@@ -169,7 +172,7 @@ bool save_aligned_to_source(AppState& state, const std::vector<uint8_t>& rgba,
     }
 
     namespace fs = std::filesystem;
-    const std::string format   = single_save_format_str(state.outputFormat);
+    const std::string format   = single_save_format_str(state);
     fs::path          outFsPath = fs_path_from_utf8(state.currentPreviewPath);
     outFsPath.replace_extension("." + format);
     const std::string outPath      = fs_path_to_utf8(outFsPath);

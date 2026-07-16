@@ -97,8 +97,10 @@ void render_compose_tab(AppState& state) {
         }
     }
     draw_output_format_selector(state);
-    if (state.outputFormat == 0) {
-        ImGui::SliderInt("BLP 质量##compose", &state.quality, 0, 100);
+    if (state.outputFormat == 0 || state.outputFormat == OUTPUT_FORMAT_ORIGINAL) {
+        const char* qualityLabel = (state.outputFormat == OUTPUT_FORMAT_ORIGINAL)
+            ? "BLP / JPG 质量##compose" : "BLP 质量##compose";
+        ImGui::SliderInt(qualityLabel, &state.quality, 0, 100);
     }
     draw_output_size_selector(state);
     ImGui::Checkbox("覆盖已存在文件##compose", &state.overwrite);
@@ -146,9 +148,10 @@ void run_compose_batch_from_ui(AppState& state) {
         }
     }
 
-    const std::string format      = normalized_format_str(state.outputFormat);
-    const bool        formatIsBlp = (format == "blp");
-    const int         total       = static_cast<int>(inputPaths.size());
+    const bool preserveOriginalFormat = (state.outputFormat == OUTPUT_FORMAT_ORIGINAL);
+    const std::string selectedFormat = preserveOriginalFormat
+        ? std::string() : normalized_format_str(state.outputFormat);
+    const int total = static_cast<int>(inputPaths.size());
     int successCount = 0;
     int failedCount  = 0;
 
@@ -197,6 +200,8 @@ void run_compose_batch_from_ui(AppState& state) {
 
         apply_batch_output_size(state, out);
 
+        const std::string format = preserveOriginalFormat ? meta.format : selectedFormat;
+        const bool formatIsBlp   = (format == "blp");
         const std::string outPath  = build_output_path(state, inputPath, format, state.overwrite);
         item.outputPath            = outPath;
         const int mipCount         = formatIsBlp ? auto_mip_count(out.width, out.height) : 1;

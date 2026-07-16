@@ -25,7 +25,8 @@ void add_folder_files(AppState& state, const std::string& folder, bool recursive
 // Batch output helpers shared with the compose tab.
 /**
  * @brief  Convert a format-index to the canonical lowercase extension string.
- * @param  formatIndex  0=blp 1=png 2=jpg 3=bmp 4=tga.
+ * @param  formatIndex  0=blp 1=png 2=jpg 3=bmp 4=tga. Original-format mode
+ *                      is resolved per input file and must not be passed here.
  * @return Lowercase format string, e.g. "blp".
  */
 std::string normalized_format_str(int formatIndex);
