@@ -138,6 +138,14 @@ bool register_tga_association(const std::wstring& appPath, std::string* outError
     return register_ext_association(appPath, L".tga", L"image/x-tga", outError);
 }
 
+bool is_dds_associated() {
+    return is_ext_associated(L".dds");
+}
+
+bool register_dds_association(const std::wstring& appPath, std::string* outError) {
+    return register_ext_association(appPath, L".dds", L"image/vnd-ms.dds", outError);
+}
+
 bool is_thumbnail_registered() {
     std::wstring key = std::wstring(L"Software\\Classes\\.blp\\ShellEx\\") + kThumbnailHandler;
     HKEY hKey = nullptr;

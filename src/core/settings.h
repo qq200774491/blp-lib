@@ -3,6 +3,8 @@
 #include <string>
 
 constexpr int OUTPUT_FORMAT_ORIGINAL = 5;
+constexpr int OUTPUT_FORMAT_DDS      = 6;
+constexpr int OUTPUT_FORMAT_MAX      = OUTPUT_FORMAT_DDS;
 
 /// Application settings persisted to an INI file in the user's roaming AppData.
 struct AppSettings {
@@ -12,7 +14,7 @@ struct AppSettings {
     int   windowH          = 760;       ///< Height of the main window, in screen pixels.
     float splitterPos      = 340.0f;    ///< Left-panel width at the splitter divider, in pixels.
 
-    int  outputFormat      = 0;         ///< Output format: 0=BLP 1=PNG 2=JPG 3=BMP 4=TGA 5=original.
+    int  outputFormat      = 0;         ///< 0=BLP 1=PNG 2=JPG 3=BMP 4=TGA 5=original 6=DDS.
     int  quality           = 100;       ///< JPEG/BLP quality, 1-100.
     bool overwrite         = false;     ///< Overwrite existing output files when true.
     bool recursive         = true;      ///< Process subdirectories recursively when true.

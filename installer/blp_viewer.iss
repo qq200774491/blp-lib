@@ -31,8 +31,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [CustomMessages]
 chinesesimplified.LaunchApp=启动 {#AppName}
 english.LaunchApp=Launch {#AppName}
-chinesesimplified.RegisterThumb=注册资源管理器缩略图（BLP/TGA/PNG）
-english.RegisterThumb=Register Explorer thumbnails (BLP/TGA/PNG)
+chinesesimplified.RegisterThumb=注册资源管理器缩略图（BLP/DDS/TGA/PNG）
+english.RegisterThumb=Register Explorer thumbnails (BLP/DDS/TGA/PNG)
 chinesesimplified.UninstallShortcut=卸载 {#AppName}
 english.UninstallShortcut=Uninstall {#AppName}
 
@@ -87,6 +87,7 @@ begin
     CleanupAssociation('.blp');
     CleanupAssociation('.png');
     CleanupAssociation('.tga');
+    CleanupAssociation('.dds');
     RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\' + ViewerProgId);
     RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\CLSID\' + ThumbClsid);
   end;

@@ -223,9 +223,15 @@ void add_files(AppState& state, const std::vector<std::string>& paths) {
 // ---------------------------------------------------------------------------
 
 std::string normalized_format_str(int formatIndex) {
-    const char* formats[] = {"blp", "png", "jpg", "bmp", "tga"};
-    if (formatIndex >= 0 && formatIndex < 5) return formats[formatIndex];
-    return "blp";
+    switch (formatIndex) {
+        case 0: return "blp";
+        case 1: return "png";
+        case 2: return "jpg";
+        case 3: return "bmp";
+        case 4: return "tga";
+        case OUTPUT_FORMAT_DDS: return "dds";
+        default: return "blp";
+    }
 }
 
 std::string build_output_path(const AppState& state, const std::string& inputPath,
@@ -315,6 +321,7 @@ void draw_output_format_selector(AppState& state) {
     draw_format_button("BMP", 3, formatButtonW);
     ImGui::SameLine();
     draw_format_button("TGA", 4, formatButtonW);
+    draw_format_button("DDS", OUTPUT_FORMAT_DDS, formatButtonW);
 }
 
 void draw_output_size_selector(AppState& state) {
@@ -462,9 +469,9 @@ void render_batch_convert_tab(AppState& state) {
         const bool hasOutputDir = state.outputDirBuf[0] != '\0';
         const bool hasFiles     = !state.fileList.empty();
         const bool hasInputDir  = state.inputDirBuf[0] != '\0';
-        const char* formatNames[] = {"BLP", "PNG", "JPG", "BMP", "TGA", "原始格式"};
+        const char* formatNames[] = {"BLP", "PNG", "JPG", "BMP", "TGA", "原始格式", "DDS"};
         const char* formatName = formatNames[
-            std::clamp(state.outputFormat, 0, OUTPUT_FORMAT_ORIGINAL)];
+            std::clamp(state.outputFormat, 0, OUTPUT_FORMAT_MAX)];
 
         if (hasFiles) {
             ImGui::Text("将转换 %d 个文件，输出格式：%s",

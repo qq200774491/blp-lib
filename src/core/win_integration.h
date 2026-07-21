@@ -49,6 +49,12 @@ bool is_tga_associated();
  */
 bool register_tga_association(const std::wstring& appPath, std::string* outError);
 
+/** @brief Returns true when the HKCU shell association for .dds points to this viewer. */
+bool is_dds_associated();
+
+/** @brief Associate .dds files with this viewer for the current user. */
+bool register_dds_association(const std::wstring& appPath, std::string* outError);
+
 /** @brief Returns true when the BLP shell thumbnail handler CLSID is registered in HKCU. */
 bool is_thumbnail_registered();
 

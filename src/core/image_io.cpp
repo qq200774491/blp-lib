@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "blp_api.h"
+#include "dds_codec.h"
 #include "utils.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -150,17 +151,31 @@ bool load_image_file(const std::string& path,
         return false;
     }
 
-    const std::string ext         = normalize_format(extension_from_path(path));
+    const std::string ext          = normalize_format(extension_from_path(path));
     const bool        looksLikeBlp = bytes.size() >= BLP_MAGIC_BYTES &&
                                     (std::memcmp(bytes.data(), "BLP1", BLP_MAGIC_BYTES) == 0 ||
                                      std::memcmp(bytes.data(), "BLP2", BLP_MAGIC_BYTES) == 0);
+    const bool        looksLikeDds = ddscodec::is_dds(bytes.data(), bytes.size());
 
-    if (ext == "blp" || looksLikeBlp) {
+    if (looksLikeBlp || (ext == "blp" && !looksLikeDds)) {
         std::string decodeError;
         auto decoded = blpcodec::decode(bytes.data(), bytes.size(), &decodeError);
         if (!decoded) {
             if (outError) {
                 *outError = "BLP 解码失败" + (decodeError.empty() ? "" : "：" + decodeError);
+            }
+            return false;
+        }
+
+        outImage->width  = static_cast<int>(decoded->width);
+        outImage->height = static_cast<int>(decoded->height);
+        outImage->pixels = std::move(decoded->rgba);
+    } else if (ext == "dds" || looksLikeDds) {
+        std::string decodeError;
+        auto decoded = ddscodec::decode(bytes.data(), bytes.size(), &decodeError);
+        if (!decoded) {
+            if (outError) {
+                *outError = "DDS 解码失败" + (decodeError.empty() ? "" : "：" + decodeError);
             }
             return false;
         }
@@ -192,8 +207,8 @@ bool load_image_file(const std::string& path,
     if (outMeta) {
         outMeta->width    = outImage->width;
         outMeta->height   = outImage->height;
-        outMeta->format   = looksLikeBlp ? "blp" : ext;
-        outMeta->fileSize = static_cast<uint64_t>(std::filesystem::file_size(fsPath));
+        outMeta->format   = looksLikeBlp ? "blp" : (looksLikeDds ? "dds" : ext);
+        outMeta->fileSize = static_cast<uint64_t>(fileSize);
     }
 
     return true;
@@ -225,6 +240,17 @@ bool write_image_file(const std::string& outputPath,
                                         static_cast<uint32_t>(image.width),
                                         static_cast<uint32_t>(image.height),
                                         quality, mipCount, encoded, outError)) {
+            return false;
+        }
+    } else if (fmt == "dds") {
+        if (image.width <= 0 || image.height <= 0 || image.pixels.empty()) {
+            if (outError) *outError = "无效的图像数据";
+            return false;
+        }
+        if (!ddscodec::encode_bgra8(image.pixels.data(),
+                                    static_cast<uint32_t>(image.width),
+                                    static_cast<uint32_t>(image.height),
+                                    encoded, outError)) {
             return false;
         }
     } else if (!encode_to_bytes(image, fmt, quality, &encoded, outError)) {

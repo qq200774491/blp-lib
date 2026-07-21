@@ -10,7 +10,7 @@ Dear ImGui + Direct3D 11 frontend with a built-in C++ BLP1 codec.
 
 ## Features
 
-- Preview BLP, PNG, JPG, BMP, TGA with zoom/pan
+- Preview BLP, DDS, PNG, JPG, BMP, TGA with zoom/pan
 - Alpha channel overlay display
 - Mipmap level selection
 - Drag-and-drop batch conversion between formats
@@ -25,6 +25,7 @@ Dear ImGui + Direct3D 11 frontend with a built-in C++ BLP1 codec.
 | BLP1 palette (1 / 4 / 8-bit alpha) | ✓ | — |
 | BLP1 JPEG-content | ✓ | ✓ (quality 0–100, full mipmap chain) |
 | BLP2 (World of Warcraft) | — | — |
+| DDS legacy / DX10 (RGB[A], DXT1/3/5, BC1–BC5) | ✓ | ✓ (lossless BGRA8) |
 
 ## Requirements
 
@@ -47,14 +48,17 @@ Outputs to `build/Release/`:
 | `blp_viewer.exe` | Main application |
 | `blp_thumbnail.dll` | Shell extension — register separately if needed |
 | `blp_codec_selftest.exe` | Codec regression test binary |
+| `dds_codec_selftest.exe` | DDS codec format and round-trip tests |
 
 ## Testing
 
 ```powershell
 .\build\Release\blp_codec_selftest.exe test-data\blp test-data\png
+.\build\Release\dds_codec_selftest.exe
 ```
 
-Runs decode regression (PSNR comparison against reference PNGs) and encode round-trip validation over the samples in `test-data/`.
+Runs BLP decode regression / encode round-trip validation over `test-data/`, plus
+DDS header, compressed-format, malformed-input, and lossless round-trip tests.
 
 ## Installer
 
@@ -82,7 +86,7 @@ Dear ImGui + Direct3D 11 前端，内置 C++ BLP1 编解码器。
 
 ## 功能
 
-- 预览 BLP、PNG、JPG、BMP、TGA，支持缩放/平移
+- 预览 BLP、DDS、PNG、JPG、BMP、TGA，支持缩放/平移
 - Alpha 通道叠加显示
 - Mipmap 层级切换
 - 拖拽批量格式互转
@@ -97,6 +101,7 @@ Dear ImGui + Direct3D 11 前端，内置 C++ BLP1 编解码器。
 | BLP1 调色板（1 / 4 / 8-bit alpha） | ✓ | — |
 | BLP1 JPEG-content | ✓ | ✓（quality 0–100，完整 mipmap 链） |
 | BLP2（魔兽世界） | — | — |
+| DDS 传统 / DX10（RGB[A]、DXT1/3/5、BC1–BC5） | ✓ | ✓（无损 BGRA8） |
 
 ## 环境要求
 
@@ -119,14 +124,17 @@ Dear ImGui + Direct3D 11 前端，内置 C++ BLP1 编解码器。
 | `blp_viewer.exe` | 主程序 |
 | `blp_thumbnail.dll` | Shell 扩展，按需单独注册 |
 | `blp_codec_selftest.exe` | 编解码回归测试二进制 |
+| `dds_codec_selftest.exe` | DDS 格式解析与编码往返测试 |
 
 ## 测试
 
 ```powershell
 .\build\Release\blp_codec_selftest.exe test-data\blp test-data\png
+.\build\Release\dds_codec_selftest.exe
 ```
 
-对 `test-data/` 下的样本执行解码回归（与参考 PNG 比较 PSNR）及编码往返验证。
+对 `test-data/` 下的样本执行 BLP 解码回归与编码往返验证，并测试 DDS
+头部、压缩格式、损坏输入及无损编码往返。
 
 ## 安装包
 

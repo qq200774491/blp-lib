@@ -15,14 +15,14 @@ struct RgbaImage {
 struct ImageMeta {
     int width = 0;                   ///< Image width in pixels.
     int height = 0;                  ///< Image height in pixels.
-    std::string format;              ///< Lowercase format string, e.g. "png", "blp".
+    std::string format;              ///< Lowercase format string, e.g. "png", "blp", "dds".
     uint64_t fileSize = 0;           ///< Size of the source file in bytes.
 };
 
 /**
  * @brief  Load an image from disk into an RGBA8 buffer.
- * @param  path      UTF-8 path to the source file; BLP, PNG, JPG, TGA and BMP
- *                   are supported. BLP files are identified by magic bytes first.
+ * @param  path      UTF-8 path to the source file; BLP, DDS, PNG, JPG, TGA and
+ *                   BMP are supported. BLP and DDS files are also identified by magic bytes.
  * @param  outImage  Receives decoded pixel data on success; must not be null.
  * @param  outMeta   Optional; receives width, height, format and file size.
  * @param  outError  Optional; receives a human-readable error message on failure.
@@ -43,7 +43,7 @@ bool load_image_file(
  * @param  outputPath  UTF-8 destination path; parent directories are created
  *                     automatically.
  * @param  format      Target format string (case-insensitive): "png", "jpg",
- *                     "bmp", "tga", or "blp".
+ *                     "bmp", "tga", "dds", or "blp".
  * @param  image       Source RGBA8 image; must have valid dimensions and pixels.
  * @param  quality     JPEG / BLP quality [1..100]; ignored for lossless formats.
  * @param  mipCount    Number of mip levels to generate for BLP output; ignored

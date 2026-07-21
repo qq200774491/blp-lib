@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- End-to-end DDS support across preview, thumbnails, drag-and-drop, layer composite,
+  batch conversion, single-image save, original-format output, file association,
+  and Explorer thumbnails
+- DDS decoding for legacy/DX10 RGB(A), DXT1/3/5, and BC1–BC5 textures; lossless
+  BGRA8 DDS encoding and dedicated codec self-tests
+
 ## [1.5.0] - 2026-06-22
 
 ### Added
@@ -27,6 +37,15 @@
 ---
 
 # 更新日志
+
+## [未发布]
+
+### 新功能
+
+- DDS 端到端支持：预览、缩略图、拖放、图层合成、批量转换、单图保存、
+  原始格式输出、文件关联及资源管理器缩略图均可使用 DDS
+- 支持解码传统/DX10 DDS 的 RGB(A)、DXT1/3/5 与 BC1–BC5，支持无损
+  BGRA8 DDS 编码，并新增独立编解码自测
 
 ## [1.5.0] - 2026-06-22
 

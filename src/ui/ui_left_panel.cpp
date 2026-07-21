@@ -44,7 +44,7 @@ void render_left_panel(AppState& state) {
             const float halfW = (ImGui::GetContentRegionAvail().x - gap) * 0.5f;
 
             if (ImGui::Button("添加文件...", ImVec2(halfW, 0))) {
-                auto files = open_file_dialog(state.hwnd, L"*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp", true);
+                auto files = open_file_dialog(state.hwnd, L"*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp;*.dds", true);
                 std::vector<std::string> paths;
                 for (const auto& f : files)
                     paths.push_back(fs_path_to_utf8(std::filesystem::path(f)));

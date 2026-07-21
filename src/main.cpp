@@ -280,6 +280,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
     g_state.blpAssociated     = is_blp_associated();
     g_state.pngAssociated     = is_png_associated();
     g_state.tgaAssociated     = is_tga_associated();
+    g_state.ddsAssociated     = is_dds_associated();
     g_state.thumbnailRegistered = is_thumbnail_registered();
 
     int    argc = 0;

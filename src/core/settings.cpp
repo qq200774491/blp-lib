@@ -82,7 +82,7 @@ void AppSettings::load() {
         else if (key == "splitterPos")      parse_float(value, splitterPos);
         else if (key == "outputFormat") {
             parse_int(value, outputFormat);
-            outputFormat = std::clamp(outputFormat, 0, OUTPUT_FORMAT_ORIGINAL);
+            outputFormat = std::clamp(outputFormat, 0, OUTPUT_FORMAT_MAX);
         }
         else if (key == "quality")          parse_int(value, quality);
         else if (key == "overwrite")        overwrite        = (value == "1");

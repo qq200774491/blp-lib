@@ -43,7 +43,7 @@ void render_compose_tab(AppState& state) {
 
     if (state.composeOpMode == 0) {
         if (ImGui::Button("选择叠加图...")) {
-            auto files = open_file_dialog(state.hwnd, L"*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp", false);
+            auto files = open_file_dialog(state.hwnd, L"*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp;*.dds", false);
             if (!files.empty()) {
                 state.overlayImagePath = fs_path_to_utf8(std::filesystem::path(files.front()));
             }

@@ -3,6 +3,7 @@
 #include "utils.h"
 #include "image_io.h"
 #include "blp_api.h"
+#include "batch_convert.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -44,9 +45,7 @@ std::string single_save_format_str(const AppState& state) {
     if (state.outputFormat == OUTPUT_FORMAT_ORIGINAL && !state.currentMeta.format.empty()) {
         return normalize_format(state.currentMeta.format);
     }
-    static const char* formats[] = {"blp", "png", "jpg", "bmp", "tga"};
-    if (state.outputFormat >= 0 && state.outputFormat < 5) return formats[state.outputFormat];
-    return "blp";
+    return normalized_format_str(state.outputFormat);
 }
 
 void update_preview(AppState& state, const std::string& path) {

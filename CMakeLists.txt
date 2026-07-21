@@ -41,6 +41,7 @@ set(BLP_VIEWER_SOURCES
     src/ui/thumbnail_grid.cpp
     src/core/utils.cpp
     src/core/settings.cpp
+    src/core/dds_codec.cpp
     src/core/image_io.cpp
     src/core/image_ops.cpp
     src/core/image_texture.cpp
@@ -94,6 +95,7 @@ add_library(blp_thumbnail SHARED
     shell_ext/blp_thumbnail.cpp
     shell_ext/blp_thumbnail.def
     src/blp/blp_codec.cpp
+    src/core/dds_codec.cpp
 )
 
 target_include_directories(blp_thumbnail PRIVATE
@@ -135,4 +137,15 @@ if (BLP_BUILD_TESTS)
         target_compile_options(blp_codec_selftest PRIVATE /utf-8)
     endif()
     target_link_libraries(blp_codec_selftest PRIVATE ${TURBOJPEG_LIB})
+
+    add_executable(dds_codec_selftest
+        tests/dds_codec_selftest.cpp
+        src/core/dds_codec.cpp
+    )
+    target_include_directories(dds_codec_selftest PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    if (MSVC)
+        target_compile_options(dds_codec_selftest PRIVATE /utf-8)
+    endif()
 endif()

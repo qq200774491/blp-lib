@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "blp/blp_codec.h"
+#include "core/dds_codec.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_TGA
@@ -209,6 +210,20 @@ bool try_decode_blp(const std::vector<uint8_t>& bytes, UINT cx, HBITMAP* outBmp)
     return true;
 }
 
+bool try_decode_dds(const std::vector<uint8_t>& bytes, UINT cx, HBITMAP* outBmp) {
+    if (!outBmp || !ddscodec::is_dds(bytes.data(), bytes.size())) return false;
+
+    auto image = ddscodec::decode(bytes.data(), bytes.size(), nullptr);
+    if (!image) return false;
+
+    HBITMAP hbmp = create_thumbnail_bitmap_from_rgba(
+        image->rgba.data(), static_cast<int>(image->width), static_cast<int>(image->height), cx);
+    if (!hbmp) return false;
+
+    *outBmp = hbmp;
+    return true;
+}
+
 bool try_decode_raster(const std::vector<uint8_t>& bytes, UINT cx, HBITMAP* outBmp) {
     if (!outBmp) return false;
     if (bytes.size() > static_cast<size_t>(std::numeric_limits<int>::max())) return false;
@@ -286,7 +301,9 @@ public:
         if (FAILED(hr)) return hr;
 
         HBITMAP hbmp = nullptr;
-        if (!try_decode_blp(bytes, cx, &hbmp) && !try_decode_raster(bytes, cx, &hbmp)) {
+        if (!try_decode_blp(bytes, cx, &hbmp) &&
+            !try_decode_dds(bytes, cx, &hbmp) &&
+            !try_decode_raster(bytes, cx, &hbmp)) {
             return E_FAIL;
         }
         if (!hbmp) return E_FAIL;
@@ -418,6 +435,15 @@ STDAPI DllRegisterServer(void) {
               kThumbnailHandler);
     set_registry_string(HKEY_CURRENT_USER, pngSfaKey, nullptr, kThumbnailClsid);
 
+    wchar_t ddsShellExKey[MAX_PATH] = {};
+    wsprintfW(ddsShellExKey, L"Software\\Classes\\.dds\\ShellEx\\%s", kThumbnailHandler);
+    set_registry_string(HKEY_CURRENT_USER, ddsShellExKey, nullptr, kThumbnailClsid);
+
+    wchar_t ddsSfaKey[MAX_PATH] = {};
+    wsprintfW(ddsSfaKey, L"Software\\Classes\\SystemFileAssociations\\.dds\\ShellEx\\%s",
+              kThumbnailHandler);
+    set_registry_string(HKEY_CURRENT_USER, ddsSfaKey, nullptr, kThumbnailClsid);
+
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     return S_OK;
 }
@@ -457,6 +483,15 @@ STDAPI DllUnregisterServer(void) {
     wsprintfW(pngSfaKey, L"Software\\Classes\\SystemFileAssociations\\.png\\ShellEx\\%s",
               kThumbnailHandler);
     SHDeleteKeyW(HKEY_CURRENT_USER, pngSfaKey);
+
+    wchar_t ddsShellExKey[MAX_PATH] = {};
+    wsprintfW(ddsShellExKey, L"Software\\Classes\\.dds\\ShellEx\\%s", kThumbnailHandler);
+    SHDeleteKeyW(HKEY_CURRENT_USER, ddsShellExKey);
+
+    wchar_t ddsSfaKey[MAX_PATH] = {};
+    wsprintfW(ddsSfaKey, L"Software\\Classes\\SystemFileAssociations\\.dds\\ShellEx\\%s",
+              kThumbnailHandler);
+    SHDeleteKeyW(HKEY_CURRENT_USER, ddsSfaKey);
 
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     return S_OK;

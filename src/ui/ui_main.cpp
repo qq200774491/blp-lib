@@ -151,7 +151,7 @@ void show_about_dialog(AppState& state) {
         ImGui::Separator();
         ImGui::TextUnformatted("版本：1.5");
         ImGui::TextUnformatted("魔影游戏");
-        ImGui::TextUnformatted("用于 BLP / PNG / JPG / BMP / TGA 的查看与转换工具。");
+        ImGui::TextUnformatted("用于 BLP / DDS / PNG / JPG / BMP / TGA 的查看与转换工具。");
         ImGui::Text("BLP 编解码：%s（内置）", state.blpApi.version().c_str());
         ImGui::Spacing();
         if (ImGui::Button("关闭")) {
@@ -170,7 +170,7 @@ void render_menu_bar(AppState& state) {
 
     if (ImGui::BeginMenu("文件")) {
         if (ImGui::MenuItem("添加文件...")) {
-            auto files = open_file_dialog(state.hwnd, L"*.blp;*.png;*.jpg;*.jpeg;*.bmp;*.tga", true);
+            auto files = open_file_dialog(state.hwnd, L"*.blp;*.dds;*.png;*.jpg;*.jpeg;*.bmp;*.tga", true);
             std::vector<std::string> paths;
             paths.reserve(files.size());
             for (const auto& file : files) {
@@ -274,18 +274,32 @@ void render_menu_bar(AppState& state) {
                 state.logMessages.push_back(msg);
             }
         }
+        if (ImGui::MenuItem(state.ddsAssociated ? "默认打开 .dds：已设置" : "设置默认打开 .dds")) {
+            std::string error;
+            std::wstring appPath = get_app_path();
+            if (register_dds_association(appPath, &error)) {
+                state.ddsAssociated = is_dds_associated();
+                state.logMessages.push_back(state.ddsAssociated
+                    ? "已关联 .dds 打开方式"
+                    : "已写入关联项，但系统默认应用未生效");
+            } else {
+                char msg[256];
+                std::snprintf(msg, sizeof(msg), "关联 .dds 失败：%s", error.c_str());
+                state.logMessages.push_back(msg);
+            }
+        }
 
         ImGui::Separator();
         std::wstring dllPath = get_app_dir() + L"\\blp_thumbnail.dll";
         bool dllExists = std::filesystem::exists(dllPath);
         bool checked = state.thumbnailRegistered;
-        if (ImGui::MenuItem("资源管理器缩略图（BLP/TGA/PNG）", nullptr, checked, dllExists)) {
+        if (ImGui::MenuItem("资源管理器缩略图（BLP/DDS/TGA/PNG）", nullptr, checked, dllExists)) {
             std::string error;
             const char* entry = checked ? "DllUnregisterServer" : "DllRegisterServer";
             if (call_dll_entry(dllPath, entry, &error)) {
                 state.logMessages.push_back(checked
-                    ? "已关闭资源管理器缩略图（BLP/TGA/PNG）"
-                    : "已启用资源管理器缩略图（BLP/TGA/PNG）");
+                    ? "已关闭资源管理器缩略图（BLP/DDS/TGA/PNG）"
+                    : "已启用资源管理器缩略图（BLP/DDS/TGA/PNG）");
             } else {
                 char msg[256];
                 std::snprintf(msg, sizeof(msg), "%s：%s",
@@ -300,6 +314,7 @@ void render_menu_bar(AppState& state) {
             state.blpAssociated       = is_blp_associated();
             state.pngAssociated       = is_png_associated();
             state.tgaAssociated       = is_tga_associated();
+            state.ddsAssociated       = is_dds_associated();
             state.thumbnailRegistered = is_thumbnail_registered();
         }
         ImGui::EndMenu();

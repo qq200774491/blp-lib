@@ -85,7 +85,7 @@ std::string normalize_format(const std::string& format) {
 }
 
 std::vector<std::string> supported_extensions() {
-    return {"blp", "png", "jpg", "jpeg", "bmp", "tga"};
+    return {"blp", "dds", "png", "jpg", "jpeg", "bmp", "tga"};
 }
 
 bool is_supported_file(const std::string& path) {

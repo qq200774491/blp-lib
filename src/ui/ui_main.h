@@ -47,7 +47,7 @@ struct AppState {
     std::unordered_map<std::string, std::string> relativePathMap;
     int selectedFileIndex = -1;
 
-    int  outputFormat = 0;  ///< 0=BLP 1=PNG 2=JPG 3=BMP 4=TGA 5=original
+    int  outputFormat = 0;  ///< 0=BLP 1=PNG 2=JPG 3=BMP 4=TGA 5=original 6=DDS
     int  quality      = 100;
     bool overwrite    = false;
     bool recursive    = true;
@@ -123,6 +123,7 @@ struct AppState {
     bool blpAssociated       = false;
     bool pngAssociated       = false;
     bool tgaAssociated       = false;
+    bool ddsAssociated       = false;
     bool thumbnailRegistered = false;
 
     float dpiScale = 1.0f;
